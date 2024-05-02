@@ -1,0 +1,43 @@
+﻿ku byUser
+{
+    data biao userAdmin [primaryKey(iD)] (
+    string iD "管理员ID" [by.identity.ID, notNull]
+    , byUser.enum.adminMode userMode "管理员模式" [by.identity.Attribute]
+    , datetime dt "加入时间" [by.identity.Attribute])
+    {
+        
+    }
+
+    config biao userAdmin.source "数据源配置表" (
+    string name "名称"
+    , string mode "模式"
+    , string[] actions "动作"
+    , string fieldAccess "字段访问"
+    , string[] settings "设置")
+    {
+        { iD, user, { select, insert }, iD, { name: "iD", text:  "管理员ID" } }
+        { dt, user, { insert, delete, update, select }, dt, { name: "dt", text:  "加入时间" } }
+        { userMode "获取枚举类型的枚举值数组", client, { insert, delete, update, select }, userMode, { name: "userMode", text: "管理员模式", value: adminMode.getValues() } }
+    }
+
+    config biao userAdmin.flow "数据流配置表" (
+    string name "名称"
+    , string action "动作"
+    , string[] sources "数据源(source.name)")
+    {
+        { insert, insert, { iD,  dt, userMode } }
+        { update, update, {  dt, userMode } }
+        { delete, delete, { iD } }
+        { select, select, { iD,  dt, userMode } }
+        { popup, select, { iD, userMode } }
+    }
+
+    config biao userAdmin.control "控件配置表" (
+    string name "名称"
+    , string[] types "控件类型"
+    , string[] sources "数据源(source.name)")
+    {
+        { edit, { EditArea, Grid }, {  dt, userMode } }
+        { popup, { Grid, QueryArea }, { iD, userMode } }
+    }
+}

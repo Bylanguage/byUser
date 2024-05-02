@@ -1,0 +1,14 @@
+﻿ku byUser
+{
+    system biao object.property "面向对象属性表" (
+    string belong "所属类型"
+    , string name "名称"
+    , string[] scenes "场景"
+    , string[] modifiers "修饰符"
+    , string type "类型"
+    , OBJECT value "值")
+    {
+        { resultUser, loginRow "当前用户登录的行", {  }, {  }, identity.user.userOrm ,  } 
+        { resultUser, adminRow "管理员行，非管理员则为NULL", {  }, {  }, Row~userAdmin, }
+    }
+}

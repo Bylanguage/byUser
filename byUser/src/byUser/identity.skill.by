@@ -1,0 +1,1493 @@
+﻿ku byUser
+{
+    system biao identity.skill "身份技能表" (
+    string belong "所属类型"
+    , string name "名称"
+    , string[] scenes "场景"
+    , string[] modifiers "修饰符"
+    , string[] parameters "参数"
+    , string returnType "返回类型"
+    , string body "技能体")
+    {
+        /*
+         *  //调用本库请在服务端的启动的 skill 中设定以下参数，参数的内容，可以向服务商处获取， 126是免费的
+            //smtp邮件发送设定，用于用户注册及密码找回
+            mail.host = "smtp.126.com";             //邮箱服务商的 smtp 地址
+            mail.userName = "xxxxxxxx@126.com";      //你的邮箱账号
+            mail.password = "FDBVIZXXXXXXXX";     //密码，可能各邮件运营商有差别 该处的密码不是登录密码，而是smtp发送的密码
+            
+            //短信接口，，用于用户注册及密码找回 ，这部分是第三方运营商，是收费的，你也可以自行制作第三方的短信服务商接口
+            feigeSend.p_apikey = "N87846xxx";      //通知短信/营销短信产品接口账号
+            feigeSend.p_secret = "87846115xxxxxxxx";//与接口账号对应的秘钥
+            feigeSend.p_sign_id = "165xxx";         //短信签名
+            feigeSend.p_template_id ="13xxxx";      //模板短信ID
+         * */
+        { user, initInsertAdmin "如果admin为空则自动创建一个用户,用户名:admin 密码:admin123  且把这个用户放到管理员表中", { server }, {  }, {  }, void, {
+            var tmpAdmin = select count(a.iID) as total by default  from this.rUserAdmin a; 
+            if( tmpAdmin.rows[0].total == 0) 
+            {
+                var  tmpUserList = select count(a.iID) as total  by default from this a; 
+                if( tmpUserList.rows[0].total == 0) 
+                { 
+                    var tmpUserRow = new Row()~this;
+                    tmpUserRow.iDisplayName="admin";
+                    tmpUserRow.iFreeze = false;
+                    tmpUserRow.iRank = rank.vip;
+                    tmpUserRow.iID = byCommon.identity.general.getGuid(); 
+                    tmpUserRow.iName ="admin";
+                    tmpUserRow.iPassword = md5Plus("admin123");
+                    tmpUserRow.iRegDt = datetime.getNow();
+                    tmpUserRow.iRemark="系统初始化自动生成"; 
+                    
+                    var tmpAdminRow = new Row()~this.rUserAdmin; 
+                    tmpAdminRow.iUserMode = adminMode.general;
+                    tmpAdminRow.iID = tmpUserRow.iID;  ;//byCommon.identity.general.getGuid(); 
+                    tmpAdminRow.iDt =tmpUserRow.iRegDt ;
+                    tran
+                    {
+                        insert by tmpUserRow;
+                        insert by tmpAdminRow;
+                    }
+                    error (string message)
+                    {
+                        throw new Exception("初始inset 管理员数据时出错"+message);
+                    }
+                }
+            }
+        } } 
+        { user, userLoginChild"再次验证用户名和密码的格式验证", { server,web,client }, { private }, { resultUser f_resultValue ,string f_user  "用户名称", string f_pwd "密码" }, bool, {
+            f_resultValue.info = this.verifyUserFormat(f_user);
+            if( f_resultValue.info != null) 
+            {
+                return false;  //退出，用户格式有非法
+            }
+            f_resultValue.info = this.verifyPwd(f_pwd);
+            if( f_resultValue.info != null) 
+            {
+                return false;//退出，密码格式有非法
+            } 
+            return true;
+        } }
+        { user, userLogin "接受用户登录", {server,web,client}, , {string f_user  "用户名称", string f_pwd "密码"}, object.resultUser, { 
+            var tmpResultValue = new object.resultUser();  
+            scene(server) 
+            {
+                f_user = this.rsaDecode(f_user); //通过私钥解密 
+                f_pwd = this.rsaDecode(f_pwd); //通过私钥解密
+                var tmpSession = ServerSession.getCurrentSession();  
+                string tmpSessionIp = tmpSession.ip;
+                if(this.pDenyIpDic.containsKey(tmpSessionIp)) 
+                {
+                    var  tmpLogSummary = "当前IP["+tmpSessionIp+"]已经被锁定，锁定时间:"+this.pDenyIpInterval+"分钟!";
+                    this.rLog.write(logState.user,f_user+"  "+tmpLogSummary+"  "+tmpSession.ip);  //写日志               
+                    //说明当前IP已被锁定
+                    var tmpIp = this.pDenyIpDic[tmpSessionIp];
+                    if(datetime.getNow().diffMinutes(tmpIp) >this.pDenyIpInterval)
+                    {
+                       this.pDenyIpDic.remove(tmpSessionIp);
+                    } 
+                    else
+                    {
+                       tmpResultValue.info =tmpLogSummary; 
+                       return tmpResultValue;
+                    }
+                }
+                if(this.pDenyUserDic.containsKey(f_user)) 
+                {
+                    var tmpDtList =  this.pDenyUserDic[f_user];  //如果存在登录出错，判断错误次数是否超过五次 
+                    if(tmpDtList.count > 5) 
+                    {
+                        if(datetime.getNow().diffMinutes(tmpDtList[tmpDtList.count - 1]) > this.pDenyIpInterval ) 
+                        {
+                            this.pDenyUserDic.remove(f_user); 
+                        }
+                        else
+                        {
+                            tmpResultValue.info="您当前用户名已经连续登录出错超过5次，当前账号已经被锁定，请"+this.pDenyIpInterval+"小时后再尝试！";
+                            this.rLog.write(logState.user, f_user+"  "+tmpResultValue.info+"  "+tmpSession.ip); //写日志 
+                            return tmpResultValue;
+                        }
+                    }
+                } 
+                var tmpList = select a.*,b.+,enum.uploadMode.userIco.toString() userIcoPath, c.iFileName, c.iExtendName  by userOrm from ( select a.iID,a.iName,a.iDisplayName,a.iFreeze,a.iRank from this a where a.iName==f_user && a.iPassword == f_pwd ) a left join this.rUserAdmin b on a.iID == b.iID left join this.rUserICO c on a.iID == c.iID  ; //仅显示部分不敏感信息 
+                if(tmpList.rows.count ==0) 
+                {
+                    if(this.pDenyUserDic.containsKey(f_user)) 
+                    {
+                        this.pDenyUserDic[f_user].add(datetime.getNow());
+                    } 
+                    else
+                    {
+                        var  tmpDtList = new List<datetime>();
+                        tmpDtList.add(datetime.getNow());
+                        this.pDenyUserDic.add(f_user,tmpDtList);
+                    } 
+                    tmpResultValue.info="用户名或密码错误，请重试！连续出错5次则该账号会被锁定"+this.pDenyIpInterval+"分钟！";
+                    this.rLog.write( logState.user ,f_user +"  "+ tmpResultValue.info +"  "+ tmpSession.ip); //写日志
+                    return tmpResultValue;
+                }
+                else
+                {
+                    if(tmpList.rows[0].a.iFreeze)   //说明存在记录，再看一下状态是不是正常
+                    {
+                        tmpResultValue.info="当前用户已经被冻结，如想继续使用请联系客服！";
+                        this.rLog.write( logState.user , tmpList.rows[0].a.iID +"  "+ f_user+"  "+tmpResultValue.info +"  "+ tmpSession.ip ); //写日志
+                        return tmpResultValue;
+                    }
+                    if(this.pDenyUserDic.containsKey(f_user))  //说明登录成功啦 清掉出错的次数
+                    {
+                        this.pDenyUserDic.remove(f_user);
+                    } 
+                    tmpResultValue.loginRow = tmpList.rows[0];
+                    tmpResultValue.isOk = true; 
+                    tmpResultValue.info ="登录成功！";
+                    tmpResultValue.loginRow = tmpList.rows[0];//  tmpList.rows[0].clone(); //因为是一个引用类型，下面要加密，主要防止修改服务端session.user
+                    tmpSession.user = tmpList.rows[0].a;
+                    tmpSession.other = tmpList.rows[0];
+                    this.rLog.write( logState.user ,  tmpList.rows[0].a.iID+"  "+f_user+"  "+tmpResultValue.info+"  "+ tmpSession.ip); //写日志
+                    if(this.loginSuccessEvent != null) 
+                    {
+                        this.loginSuccessEvent(tmpList.rows[0]);
+  
+                    }
+                    if(!this.publicKeyWebClient.containsKey(tmpSession))
+                    {
+                        tmpResultValue.loginRow =null;
+                        tmpResultValue.isOk = false;
+                        tmpResultValue.info="没有找到当前session对应的RSA证书，\r\n你需要刷新缓存Ctrl+Shift+delete 并且选中Cookie及其他网站数据项,\r\n或检查你的web端与服务端布署的url是否在同一域下!"; 
+                        return tmpResultValue;
+                    } 
+                    else
+                    {
+                        var tmpFrontPublicKey = this.publicKeyWebClient[tmpSession];  //对要进行传输的用户信息进行rsa加密 
+                        tmpResultValue.loginRow.a.iName = this.rsaEncode(tmpResultValue.loginRow.a.iName);
+                        tmpResultValue.loginRow.a.iDisplayName = this.rsaEncode(tmpResultValue.loginRow.a.iDisplayName); 
+                    }	        
+                } 
+                
+                //var tmpUserID =tmpResultValue.loginRow.a.iID;
+                //var tmpAdminRow = select a.* from this.rUserAdmin a where a.iID == tmpUserID;
+                //if(tmpAdminRow.rows.count > 0)  //确认是不是管理员，如果是则
+                //    tmpResultValue.adminRow =  tmpAdminRow.rows[0]; 
+                    
+                return tmpResultValue; 
+		    }
+		    scene( client , web )
+		    {
+		        
+                if(!this.userLoginChild(tmpResultValue,f_user,f_pwd)) 
+                {
+                    return tmpResultValue;
+                }
+		        tmpResultValue = this.:server userLogin:( this.rsaEncode(f_user) , this.rsaEncode( f_pwd )); 
+		        if(tmpResultValue.isOk) 
+		        {
+		            tmpResultValue.loginRow.a.iName = this.rsaDecode(tmpResultValue.loginRow.a.iName);
+		            tmpResultValue.loginRow.a.iDisplayName = this.rsaDecode(tmpResultValue.loginRow.a.iDisplayName);
+		            this.pSession = tmpResultValue.loginRow;
+		            System.byCookie = tmpResultValue.loginRow.a.iID; //将返回结果的信息存储在 当前用户终端 的cookie中，之后每次传输自动添加此属性
+		            if(this.loginSuccessEvent != null) 
+		            {
+		                this.loginSuccessEvent(tmpResultValue.loginRow); //触发登录事件
+		            }
+		        } 
+		        return tmpResultValue;
+		    }
+        } }
+        //{ user, verifySessionUserIsLogin "验证用户是否登录session方式,web&client端如果没有登录则调用登录dialog执行登录，并返回是否登录成功", { server, web, client }, {  }, {  }, bool , {
+        //    scene(server) return ServerSession.getCurrentSession().user == null ? false :true ;  //session 过期时间过短
+        //    scene(web,client)
+        //    {
+        //        if(this.pSession == null)
+        //        { 
+        //            var tmpWaiting = byCommon.identity.relatedDialog.Loading();
+        //            this.new diLogin().showDialog(); //如果没有登录，则展示登录dialog请求登录
+        //            tmpWaiting.close();
+        //        }
+        //        return this.pSession == null ? false : true ;
+        //    }
+        //} }
+        { user, confirmUserIsLogin "确认用户是否登录,web&client端如果没有登录则调用登录dialog执行登录，并返回是否登录成功,仅", { server, web, client }, {  }, {  }, bool"登录了返回true", {
+            scene(server) 
+            {
+                var tmpSession = ServerSession.getCurrentSession();
+                if(this.pVerifyMode == verifyMode.cookie)
+                    return tmpSession.byCookie == null || tmpSession.byCookie == "" ? false :true ; 
+                else
+                    return tmpSession.user == null || tmpSession.user.iID == null || tmpSession.user.iID =="" ? false : true;
+            }
+            scene(web,client)
+            {
+                if(this.pVerifyMode == verifyMode.cookie) 
+                {
+                    if(System.byCookie == null || System.byCookie =="") 
+                    { 
+                        var tmpWaitingDialog = byCommon.identity.relatedDialog.Loading();
+                        this.new diLogin().showDialog(); //如果没有登录，则展示登录dialog请求登录 
+                        tmpWaitingDialog.close();
+                    }
+                    return  System.byCookie == null && System.byCookie =="" ? false : true ;
+                }
+                else
+                {
+                    if( this.pSession == null || this.pSession.a.iID == null || this.pSession.a.iID =="" ) 
+                    {
+                        var tmpWaitingDialog = byCommon.identity.relatedDialog.Loading();
+                        this.new diLogin().showDialog(); //如果没有登录，则展示登录dialog请求登录
+                        tmpWaitingDialog.close();
+                    }
+                    return  this.pSession == null || this.pSession.a.iID == null || this.pSession.a.iID =="" ? false : true;
+                }
+            }
+        } }
+        { user, confirmUserIsLogin "验证当前参数用户是否与登录的用户是一致的，一致返回true", { server, web, client }, {  }, { string f_userID"验证当前userID与当前是否一致" }, bool "一致返回true", {
+            scene(server) 
+            {
+                var tmpSession = ServerSession.getCurrentSession();
+                if(this.pVerifyMode == verifyMode.cookie)  
+                { 
+                    var tmpUserID = tmpSession.byCookie;
+                    if(tmpUserID == null || tmpUserID == "")
+                        return false;
+                    else
+                        return  tmpUserID == f_userID ? true : false ;
+                }
+                else
+                    return tmpSession.user == null || tmpSession.user.iID == null || tmpSession.user.iID =="" ? false : true ;
+            }
+            scene(web,client)
+            {
+                if(this.pVerifyMode == verifyMode.cookie) 
+                { 
+                    if(System.byCookie == null || System.byCookie =="")
+                        return false;
+                    else
+                        return System.byCookie == f_userID ? true : false ; 
+                }
+                else
+                    return this.pSession == null || this.pSession.a.iID == null || this.pSession.a.iID =="" ? false : true;
+            }
+        } }
+        { user, addUserMenuBar "把传入菜单加入用户项", {  web, client }, {  }, { MenuBar f_menu "菜单栏" }, MenuItem, {
+            if(this.pSession != null) 
+            { 
+                var tmpMenuList = this.getUserMenuItem(); 
+                var tmpIco =  this.pSession.iFileName == null || this.pSession.iFileName == "" ? "byUser.png" : this.pSession.iFileName +"."+ this.pSession.iExtendName;
+                var tmpUserRoot = new MenuItem(){ name ="user" , text="用户" };
+                scene(web) 
+                {
+                    tmpUserRoot.image = Image.fromUrl( this.rUserICO.getIcoUrlPath(tmpIco) );
+                }
+                
+                f_menu.add( tmpUserRoot );
+                foreach (var item in tmpMenuList)
+                {
+                    tmpUserRoot.add(item);
+                }
+                this.rUserICO.userICOChangeEvent +=(userOrm f_userRow) //如果变动则修改
+                {
+                    //scene(client)
+                    //tmpUserRoot.image = ku(byUser).getResource( tmpIco ).toImage() ;// Image.fromResource(tmpIco);
+                    scene( web )
+                        tmpUserRoot.image =  Image.fromUrl( this.rUserICO.getIcoUrlPath(tmpIco) );
+                };
+                return tmpUserRoot;
+            } 
+            return null;
+        } }
+        { user, modifyUserRoot "动态控制用户根菜单（头像、用户名）", {  web, client }, {  }, { MenuItem f_userItem }, void, {
+            if(this.pSession != null) 
+            { 
+                var tmpMenuList = this.getUserMenuItem(); 
+                var tmpIco =  this.pSession.iFileName == null || this.pSession.iFileName == "" ? "byUser.png" : this.pSession.iFileName +"."+ this.pSession.iExtendName;
+                scene(web) 
+                {
+                    string tmpUrl =  this.rUserICO.getIcoUrlPath(tmpIco);
+                    f_userItem.image = Image.fromUrl( tmpUrl );
+                }
+                f_userItem.clear();
+
+                foreach (var item in tmpMenuList)
+                {
+                    f_userItem.add(item);
+                }
+            } 
+            this.rUserICO.userICOChangeEvent +=(userOrm f_userRow) //如果变动则修改
+            {
+                //scene(client)
+                //tmpUserRoot.image = ku(byUser).getResource( tmpIco ).toImage() ;// Image.fromResource(tmpIco);
+                scene( web )
+                {
+                    string tmpUrl = this.rUserICO.getIcoUrlPath(this.pSession.iFileName +"."+ this.pSession.iExtendName);
+                    f_userItem.image =  Image.fromUrl( tmpUrl );
+                }
+            };
+
+        } }
+        { user, getUserMenuItem "获取用户登录成功后的相关菜单列表", {  web, client }, {  }, {  }, List<MenuItem> "用户登录成功后的菜单列表", {
+            var tmpResultList = new List<MenuItem>();
+            //加入菜单
+            var tmpRegStripItem = new MenuItem(){name ="reg", text="注册新用户" ,image = Ku.getKu(nameof (byUser)).getResource("reg.png").toImage() };
+            tmpRegStripItem.click+=(OBJECT sender, EventArgs args)
+            {
+                var tmpRegDialog  = this.new diUserReg(); 
+                tmpRegDialog.height =500;
+                tmpRegDialog.regSuccess+=(Row~user f_userRegRow)
+                {
+                    var tmpLogin = this.new diLogin(); 
+                    tmpLogin.cTxtName.text = f_userRegRow.iName;
+                    tmpLogin.cTxtPwd.text = f_userRegRow.iPassword; 
+                    tmpLogin.show();//显示窗体
+                    tmpLogin.startLogin(null,null);//执行登录
+                }; 
+                tmpRegDialog.showDialog();
+            };
+            tmpResultList.add(tmpRegStripItem);
+            
+            //加入菜单
+            var tmpLoginStripItem = new MenuItem(){ text="登录" ,image =  Ku.getKu(nameof (byUser)).getResource("login.png").toImage() };
+            tmpLoginStripItem.click +=(OBJECT sender, EventArgs args)
+            {
+                var tmpLogin = this.new diLogin(); 
+                tmpLogin.showDialog(); 
+            }; 
+            tmpResultList.add( tmpLoginStripItem );
+            
+            //加入菜单
+            var tmpModifPwdStripItem = new MenuItem(){ text="密码修改" ,image =  Ku.getKu(nameof (byUser)).getResource("pwdModif.png").toImage() };
+            tmpModifPwdStripItem.click +=(OBJECT sender, EventArgs args)
+            {
+                var tmpLoginDialog = this.new diModifPwd(); 
+                tmpLoginDialog.showDialog();
+            }; 
+            tmpResultList.add( tmpModifPwdStripItem );
+            
+            scene(web) //加入菜单 上传用户图标
+            { 
+                var tmpDiUploadICOItem = new MenuItem(){ text="上传个性头像图标" ,image =   Ku.getKu(nameof (byUser)).getResource("byUser.png").toImage() };
+                tmpDiUploadICOItem.click +=(OBJECT sender, EventArgs args)
+                {
+                    var tmpDiUploadICODialog = this.rUserICO.new diUploadICO(); 
+                    tmpDiUploadICODialog.showDialog();
+                }; 
+                tmpResultList.add(tmpDiUploadICOItem);
+                
+                if(this.rUserAdmin.isAdmin()) 
+                {
+                    var tmpAdminMenu = new MenuItem(){ text="管理员管理" ,image = Ku.getKu(nameof (byUser)).getResource("user.png").toImage() };
+                    tmpAdminMenu.click += (OBJECT sender, EventArgs args)
+                    {
+                        var tmpAdminDialog = this.rUserAdmin.new adminManager();
+                        tmpAdminDialog.showDialog();
+                    };
+                    tmpResultList.add( tmpAdminMenu );
+                }
+            }
+            
+            //加入菜单
+            var tmpExitStripItem = new MenuItem(){ text="退出" ,image =   Ku.getKu(nameof (byUser)).getResource("exit.png").toImage() };
+            tmpExitStripItem.click +=(OBJECT sender, EventArgs args)
+            {
+                this.exit(); //触发退出
+            };
+            tmpResultList.add(tmpExitStripItem); 
+            return tmpResultList;
+        } }
+        { user, exit "用户退出，并触发退出 userExitEvent 事件", { server, web, client }, {  }, { /* Row~user f_user"要退出的用户" */ }, void, {  
+            scene(server) 
+            {
+                var tmpSession =  ServerSession.getCurrentSession(); 
+                if(this.userExitEvent != null) 
+                {
+                    this.userExitEvent((userOrm)tmpSession.other); 
+                }
+                tmpSession.user = null; 
+                tmpSession.other = null;
+            }
+            scene(web,client)
+            {
+                System.byCookie = null;
+                this.:server exit:();//先退服务端
+                this.pSession = null;
+                if(this.userExitEvent != null) 
+                {
+                    this.userExitEvent(this.pSession); //再退客户端 
+                }
+            }
+        } }
+        { user, userReg"用户注册", { server, web, client }, {  }, {  object.Row ~ user f_userRow "用户注册行" , string f_SafetyCode"安全码" }, Result, {
+            scene(server) 
+            {
+                f_SafetyCode = this.rsaDecode(f_SafetyCode);
+                f_userRow.iDisplayName = this.rsaDecode(f_userRow.iDisplayName); //rsa解密
+                f_userRow.iMail = this.rsaDecode(f_userRow.iMail);
+                f_userRow.iMobile = this.rsaDecode(f_userRow.iMobile);
+                f_userRow.iName = this.rsaDecode(f_userRow.iName); 
+                if( this.pSafetyCode ) //验证码
+                { 
+                    var tmpResultValue = this.verifySafetyCode(f_SafetyCode);
+                    if(!tmpResultValue.isOk) //验证码验证不通过
+                    {
+                        return tmpResultValue;
+                    } 
+                }
+                return this.userReg(f_userRow);
+            }
+            scene(web,client) 
+            {
+                f_userRow.iDisplayName = this.rsaEncode(f_userRow.iDisplayName); //rsa加密
+                f_userRow.iMail = this.rsaEncode(f_userRow.iMail);
+                f_userRow.iMobile = this.rsaEncode(f_userRow.iMobile);
+                f_userRow.iName = this.rsaEncode(f_userRow.iName);
+                return this.:server userReg:(f_userRow , this.rsaEncode(f_SafetyCode));
+            }
+        } }
+        { user, userReg "用户注册", { server }, { private }, { object.Row ~ user f_userRow "用户注册行"  }, Result, { 
+            //对用户的敏感信息进行rsa解密--begin
+            f_userRow.iID = this.rsaDecode(f_userRow.iID); 
+            f_userRow.iRank = rank.register; //标明为注册用户 
+            f_userRow.iName = this.rsaDecode(f_userRow.iName);
+            f_userRow.iPassword = this.rsaDecode(f_userRow.iPassword);
+            f_userRow.iMobile = this.rsaDecode(f_userRow.iMobile);
+            f_userRow.iMail = this.rsaDecode(f_userRow.iMail);
+            f_userRow.iRegDt = byCommon.identity.general.getServerDatetime();//ruben mod 23-09-19 日期无法加密，直接获取
+           //对用户的敏感信息进行rsa解密--end
+            var tmpResultValue = new object.Result(); 
+            if(f_userRow == null) 
+            {
+                tmpResultValue.info ="用户[user]行 ，f_userRow 不能为空！"; 
+                tmpResultValue.isOk = false;
+                return tmpResultValue;
+            }
+            //tmpResultValue  = f_userRow.verify();  //ruben mod 23-09-19 这个验证会失败 todo
+            //if(!tmpResultValue.isOk) //验证数据合法性
+            //{
+            //    return tmpResultValue;
+            //}
+            var tmpRowCount = insert by f_userRow; 
+            if(tmpRowCount != 1) 
+            {
+                tmpResultValue.info ="注册失败！"; 
+                tmpResultValue.isOk = true; 
+                return tmpResultValue;
+            }
+            tmpResultValue.info ="注册成功！"; 
+            tmpResultValue.isOk = true;
+            return tmpResultValue;
+        } }
+        { user, userPwdModif, { server,web,client }, {  }, { string f_sourcePwd "原密码",string f_newPwd "新密码",string f_ID "用户id" }, object.Result, { 
+            scene(server) 
+            {
+                f_sourcePwd = this.rsaDecode(f_sourcePwd); //rsa解密
+                f_newPwd = this.rsaDecode(f_newPwd);//rsa解密
+                f_ID = this.rsaDecode(f_ID);//rsa解密
+                var tmpResultValue = new object.Result();
+                var tmpSession = ServerSession.getCurrentSession(); //验证session 是不是一致，防止第三方程序非法调用
+                if(tmpSession== null || tmpSession.user== null || ((Row~user)tmpSession.user).iID != f_ID) //此处原为验证的name但session中name经过了某些处理
+                {
+                    tmpResultValue.info ="当前用户非法，或登录时间过长,修改失败！"; 
+                    tmpResultValue.isOk = false; 
+                    return  tmpResultValue;
+                }    
+                var tmpList = select a.iID,a.iFreeze from this a where a.iName == f_ID && a.iPassword == f_sourcePwd;  //查库验证 
+                if(tmpList.rows.count == 1) //说明用户是存在的,再看一下是不是正常的
+                {
+                    if(tmpList.rows[0].iFreeze) 
+                    {
+                        tmpResultValue.info = "当前用户已冻结，不允许修改！"; 
+                        tmpResultValue.isOk = false; 
+                        return  tmpResultValue;
+                    } 
+                    var tmpRowCount = update   this a  set a.iPassword = f_newPwd     where a.iID == f_ID; 
+                    if(tmpRowCount == 1) 
+                    {
+                        tmpResultValue.info = "修改成功！"; 
+                        tmpResultValue.isOk = true; 
+                        return  tmpResultValue;
+                    } 
+                    else
+                    {
+                        tmpResultValue.info = "修改失败！"; 
+                        tmpResultValue.isOk = false; 
+                        return  tmpResultValue;
+                    }
+                }
+                else
+                {
+                    tmpResultValue.info = "原密码错误！"; 
+                    tmpResultValue.isOk = false; 
+                    return  tmpResultValue;
+                }
+                return  tmpResultValue;
+            }
+            scene(web,client)
+            {
+                return this.:server userPwdModif: ( this.rsaEncode(f_sourcePwd) , this.rsaEncode(f_newPwd) , this.rsaEncode(f_ID) );
+            }
+        } }
+        { user, userPwdModif "修改忘记的密码,f_user & f_mail & f_mobile可选填一项即可", {web,client, server  }, {  }, {string f_userMailMobile"用户/mail/mobile",safetyCodeMode f_safetyCodeMode"安全码模式", string f_newPwd "新密码",string f_safetyCode "安全码"  }, object.Result , {
+            scene(server) 
+            {
+                var tmpResultValue = new object.Result(); 
+                f_userMailMobile =  this.rsaDecode(f_userMailMobile);  //rsa 解密
+                f_newPwd = this.rsaDecode(f_newPwd);//rsa 解密
+                f_safetyCode = this.rsaDecode(f_safetyCode);//rsa 解密 
+                tmpResultValue = this.verifySafetyCode(f_safetyCode);
+                if(!tmpResultValue.isOk ) 
+                {
+                    return tmpResultValue; //安全码验证不通过
+                }
+                List<Row~user> rowList;
+                string tmpVerfy;
+                if( f_safetyCodeMode == safetyCodeMode.user) 
+                {
+                    tmpVerfy =  this.verifyUserFormat(f_userMailMobile); //服务端再次验证，以防止用户通过第三方工具注入
+                    if( tmpVerfy != null) 
+                    {
+                        tmpResultValue.info = tmpVerfy;
+                        return tmpResultValue;
+                    }
+                    rowList = ( select a.iID,a.iName,a.iDisplayName,a.iFreeze from this a where a.iName == f_userMailMobile ).rows ;
+                }
+                else if( f_safetyCodeMode == safetyCodeMode.mail)
+                {
+                    tmpVerfy = this.verifyMailFormat(f_userMailMobile); //服务端再次验证，以防止用户通过第三方工具注入
+                    if( tmpVerfy != null) 
+                    {
+                        tmpResultValue.info = tmpVerfy;
+                        return tmpResultValue;
+                    }
+                    rowList = ( select a.iID,a.iName,a.iDisplayName,a.iFreeze from this a where a.iMail == f_userMailMobile ).rows ;
+                }
+                else if( f_safetyCodeMode == safetyCodeMode.mobile)
+                {
+                    tmpVerfy = this.verifyUserFormat(f_userMailMobile); //服务端再次验证，以防止用户通过第三方工具注入
+                    if( tmpVerfy != null) 
+                    {
+                        tmpResultValue.info = tmpVerfy;
+                        return tmpResultValue;
+                    }
+                    rowList = ( select a.iID,a.iName,a.iDisplayName,a.iFreeze from this a where a.iMobile == f_userMailMobile ).rows ;
+                }
+                if(rowList.count ==0) 
+                {
+                    tmpResultValue.info = "用户非法！";
+                    return  tmpResultValue;
+                }
+                else if(rowList.count == 1 ) 
+                {
+                    if(rowList[0].iFreeze) 
+                    {
+                        tmpResultValue.info = "当前用户已冻结！"; 
+                        return  tmpResultValue;
+                    } 
+                    this.rLog.write(logState.user, rowList[0].iID +"  "+ rowList[0].iName+"  "+"用户修改密码" +"  "+ ServerSession.getCurrentSession().ip);
+                    tran
+                    {
+                        var  tmpRowCount = update this a set a.iPassword = f_newPwd   where a.iID == rowList[0].iID;
+                        if (tmpRowCount != 1)
+                        {
+                            rollback;
+                            interrupt "对数据库 insert 失败";
+                        }
+                    }
+                    error (string message)
+                    {
+                        tmpResultValue.info = message ; 
+                        return  tmpResultValue;
+                    }
+                }
+                tmpResultValue.info = "密码重设成功"; 
+                tmpResultValue.isOk = true;
+                return tmpResultValue;
+            }
+            scene(web,client)
+            {
+                return this.:server userPwdModif:( this.rsaEncode(f_userMailMobile) , f_safetyCodeMode , this.rsaEncode(f_newPwd) , this.rsaEncode(f_safetyCode) );
+            }
+        } }
+        { user, verifyMobileFormat "手机格式验证,合法返回NULL", { server, client, web }, {  }, { string f_mobile "手机号码" }, string , { 
+            if( !f_mobile.isMatch(this.pRegMobile, RegexMode.multiIgnoreCase )) 
+            {
+                return "手机号码位数必须是11位，必须是数字！"; 
+            } 
+            return null;
+        } }
+        { user, verifyMobileExists "手机号码存在吗,存在返回True", {  server, client, web }, {  }, { string f_mobile "手机号码" }, bool "存在返回True", {  
+            scene(server)
+            {
+                f_mobile = this.rsaDecode(f_mobile);
+            }
+            if(this.verifyMobileFormat(f_mobile) != null) //再次格式验证
+            {
+                return false;
+            }
+            scene(server) 
+            {
+                var tmpList = select a.iMobile from this a where a.iMobile == f_mobile;  //连库进行验证 
+                return tmpList.rows.count > 0 ? true : false ;
+            }
+            scene(web,client) 
+            {
+                return this.:server verifyMobileExists:(this.rsaEncode(f_mobile));
+            }
+        } }
+        { user, verifyRegMail "注册验证邮箱,正确返回NULL,否则返回一个错误说明", { server, client, web }, {  }, { string f_mail "邮箱" }, string , {  
+            scene(server) 
+            {
+                f_mail = this.rsaDecode(f_mail);
+            }
+            var tmpFormat = this.verifyMailFormat(f_mail); 
+            if(tmpFormat!= null) 
+            {
+                return  tmpFormat;
+            }
+            scene (server)
+            {
+                if(this.verifyMailExists(f_mail).isOk)  //连库验证
+                {
+                    return  "邮箱号码已经存在！";
+                } 
+            }
+            scene(web,client) 
+            {
+                return this.:server verifyRegMail:(this.rsaEncode(f_mail));
+            }
+            return null;
+        } }
+        { user, verifyMailFormat "验证邮箱格式,正确返回NULL,否则返回一个错误说明", { server, client, web }, {  }, { string f_mail "邮箱"  }, string, { 
+            if(f_mail.length > 64 || f_mail.length < 6 ) 
+            {
+                return "邮箱最长不超过64个字符,或大于6个字符"; 
+            }
+            if(!f_mail.isMatch(this.pRegMaile, RegexMode.multiIgnoreCase)) 
+            {
+                return "邮箱格式非法";
+            } 
+            return null;
+        } }
+        { user, verifyMailExists "验证邮箱在数据库中是否存在，存在返回true", { web,client, server }, {  }, { string f_mail "邮箱"  }, Result "存在返回True", { 
+            scene(server)
+            {
+                f_mail = this.rsaDecode(f_mail);
+            }
+            var tmpResulValue = new Result();
+            tmpResulValue.info = this.verifyMailFormat(f_mail);
+            if(tmpResulValue.info != null) 
+            {
+                return tmpResulValue; 
+            } 
+            scene(server) 
+            {
+                var tmpList = select a.iID from this a where a.iMail == f_mail;   //连库验证 
+                if(tmpList.rows.count > 0 ) 
+                {
+                    tmpResulValue.isOk = true;
+                }
+                else
+                {
+                    tmpResulValue.info ="系统中不存在这个email";
+                }
+                return tmpResulValue;
+            }
+            scene(web,client) 
+            {
+                return this.:server verifyMailExists:(this.rsaEncode(f_mail));
+            }
+        } }
+        { user, verifySafetyCodeFormat"验证安全码格式", { web, client, server }, {  }, { string f_SafetyCode"安全码" }, bool"正确返回true", {
+            return f_SafetyCode.isMatch("^[\\d]{4,8}$", RegexMode.multiline);
+        } }
+        { user, verifySafetyCode "验证安全码是不是正确的", { server }, {  }, { string f_safetyCode "安全码"}, Result, {   
+            Result tmpResult = new Result(); 
+            if(!f_safetyCode.isMatch(this.pRegSafetyCode , RegexMode.multiIgnoreCase) ) 
+            {
+                tmpResult.info ="安全码非法";
+                return tmpResult;
+            }
+            var tmpSession = ServerSession.getCurrentSession();
+            if(tmpSession == null) 
+            {
+                tmpResult.info ="会话过期，没有在服务器端找到发送的安全码信息";
+                return tmpResult;
+            }
+            if(tmpSession.other != null ) 
+            {
+                OBJECT[] objArr =(OBJECT[]) tmpSession.other; 
+                tmpSession.other = null;
+                if( f_safetyCode != objArr[0].toString() ) //说明安全码不相等，验证不通过
+                {
+                    tmpResult.info ="安全码不对！";
+                    return tmpResult;
+                }
+                else //验证码相同，再看看时间是不是在15分钟以内
+                {
+                    var tmpMin =  ((datetime)objArr[1]).diffMinutes(datetime.getNow()); 
+                    if(tmpMin > 15d) 
+                    {
+                        tmpResult.info ="超时！";
+                        return tmpResult; //超时
+                    } 
+                }
+                tmpResult.info ="验证成功！"; 
+                tmpResult.isOk = true;
+                return tmpResult;
+            }
+            tmpResult.info ="没有找到安全码信息！";
+            return tmpResult;
+        } } 
+        { user, verifyCookies"验证cookie", { web,client,server }, {  }, { string f_cookie }, Result , {
+            var tmpResultValue = new Result();
+            if( !f_cookie.isMatch("^[0-9a-z]{2,32}$", RegexMode.multiIgnoreCase) ) 
+            { 
+                tmpResultValue.info ="非法的cookie ID ["+f_cookie+"] 信息！";
+                return tmpResultValue; 
+            } 
+            tmpResultValue.isOk = true;
+            return tmpResultValue;
+        } }
+        { user, generateSafetyCode"产生一个安全码", { server }, {  }, {  }, int, {
+            var tmpMin =  byExternal.object.random.next(1000,2000); 
+            var tmpMax = byExternal.object.random.next(8000,9999);  
+            return  byExternal.object.random.next(tmpMin,tmpMax);  
+        } } 
+        { user, postSafety "发送安全码", { server }, {  }, { safetyCodeMode f_safetyCodeMode"用户/手机/邮箱" ,string f_userMobileMail "值"}, Result, {
+            var tmpResultValue = new Result();
+            f_userMobileMail = this.rsaDecode(f_userMobileMail); 
+            switch(f_safetyCodeMode) 
+            {
+                case safetyCodeMode.user:
+                    if(this.verifyUserFormat(f_userMobileMail) != null) 
+                    {
+                        tmpResultValue.info = "用户名非法！"; 
+                        return tmpResultValue;
+                    }
+                    var tmpUserList = select a.iID,a.iName,a.iMail,a.iMobile,a.iFreeze from this a where a.iName == f_userMobileMail; 
+                    if(tmpUserList.rows.count != 1 ) 
+                    {
+                        tmpResultValue.info = "系统不存在这个用户！"; 
+                        return tmpResultValue;
+                    }
+                    if(tmpUserList.rows[0].iFreeze) 
+                    {
+                        tmpResultValue.info = "当前用户已冻结！"; 
+                        return tmpResultValue;
+                    }
+                    
+                    Result mobileResult = this.postSafetyModbile(tmpUserList.rows[0].iMobile);
+                    if(mobileResult.isOk == true)
+                    {
+                        return mobileResult;
+                    }
+                    else
+                    {
+                        Result mailResult = this.postSafetyMail(tmpUserList.rows[0].iMail);
+                        if(mailResult.isOk == false)
+                        {
+                            mailResult.info += "\r\n"+mobileResult.info;;
+                        }
+                        return mailResult;   
+                    }
+                    break;
+                case safetyCodeMode.mail:
+                    if(this.verifyMailFormat(f_userMobileMail) != null) 
+                    {
+                        tmpResultValue.info = "邮箱格式非法！"; 
+                        return tmpResultValue;
+                    }
+                    var tmpMailList = select a.iID,a.iName,a.iMail,a.iMobile,a.iFreeze from this a where a.iMail == f_userMobileMail; 
+                    if(tmpMailList.rows.count != 1) 
+                    {
+                        tmpResultValue.info = "系统不存在这个邮箱！"; 
+                        return tmpResultValue;
+                    }
+                    if(tmpMailList.rows[0].iFreeze) 
+                    {
+                        tmpResultValue.info = "当前邮箱所属的用户已被冻结！"; 
+                        return tmpResultValue;
+                    }
+                    return this.postSafetyMail(tmpMailList.rows[0].iMail);
+                    break;
+                case safetyCodeMode.mobile:
+                    if(this.verifyMobileFormat(f_userMobileMail) != null) 
+                    {
+                        tmpResultValue.info = "手机格式非法！"; 
+                        return tmpResultValue;
+                    }
+                    var tmpMobileList = select a.iID,a.iName,a.iMail,a.iMobile,a.iFreeze from this a where a.iMobile == f_userMobileMail; 
+                    if(tmpMobileList.rows.count != 1) 
+                    {
+                        tmpResultValue.info = "系统不存在这个手机！"; 
+                        return tmpResultValue;
+                    }
+                    if(tmpMobileList.rows[0].iFreeze) 
+                    {
+                        tmpResultValue.info = "当前手机所属的用户已被冻结！"; 
+                        return tmpResultValue;
+                    }
+                    return this.postSafetyModbile(tmpMobileList.rows[0].iMobile);
+                    break;
+            }
+            return tmpResultValue;
+        } } 
+        { user, postSafetyModbile"向手机中发送安全码", { server }, { private }, { string f_mobile"手机" }, Result, {
+            var tmpMobileResult = this.postSafetyCodeToMobile(f_mobile);
+            return tmpMobileResult;
+        } }
+        { user, postSafetyMail"向邮箱中发送安全码", { server }, { private }, { string f_mail"邮箱" }, Result, {
+            var tmpMailResult = this.postSafetyCodeToMail(f_mail); 
+            return tmpMailResult;
+        } }
+        { user, postSafetyReg"发送注册安全码", { server,web,client }, {  }, {  string f_mail"邮箱",string f_mobile"手机" }, Result, {
+            scene(server) 
+            {
+                var tmpResultValue = new Result();
+                f_mail = this.rsaDecode(f_mail);
+                f_mobile = this.rsaDecode(f_mobile); 
+                
+                tmpResultValue.info =  this.verifyMailFormat(f_mail);
+                if(tmpResultValue.info != null)  //验证格式
+                {
+                    return tmpResultValue;
+                }
+                tmpResultValue.info =  this.verifyMobileFormat(f_mobile);
+                if(tmpResultValue.info != null)  //验证格式
+                {
+                    return tmpResultValue;
+                }
+                var tmpList = select a.iID from this a where  a.iMobile == f_mobile ; 
+                if(tmpList.rows.count > 0) 
+                {
+                    tmpResultValue.info ="手机号码已经在系统中存在！"; 
+                    return tmpResultValue;
+                }
+                var tmpList2 = select a.iID from this a where a.iMail == f_mail;
+                if(tmpList2.rows.count > 0) 
+                {
+                    tmpResultValue.info ="邮箱已经在系统中存在！"; 
+                    return tmpResultValue;
+                }
+                Result mobileResult = this.postSafetyModbile(f_mobile);
+                if(mobileResult.isOk == true)
+                {
+                    return mobileResult;
+                }
+                else
+                {
+                    Result mailResult = this.postSafetyMail(f_mail);
+                    if(mailResult.isOk == false)
+                    {
+                        mailResult.info += "\r\n"+mobileResult.info;;
+                    }
+                    return mailResult;   
+                }
+            }
+            scene(web,client) 
+            {
+                return this.:server postSafetyReg:( this.rsaEncode(f_mail) , this.rsaEncode(f_mobile) );
+            }
+        } }
+        { user, postSafetyCodeToMobile "发送安全码到手机", { server }, {  }, { string f_mobile"手机号码" }, Result, {
+            f_mobile = this.rsaDecode(f_mobile);
+            Result tmpResult= new Result();
+            var tmpCodeValue =  this.generateSafetyCode();
+            if(this.verifyMobileFormat(f_mobile) == null) //验证手机的合法性
+            { 
+                var tmpResultValue =   byExternalSMS.object.feigeSend.sendSafetyCode(f_mobile,tmpCodeValue.toString()); 
+                this.rLog.write( logState.user ,"用户注册发送验证码"+f_mobile +"  "+ ServerSession.getCurrentSession().ip);//log
+                if(tmpResultValue == null) 
+                {
+                    ServerSession.getCurrentSession().other = new OBJECT[]{tmpCodeValue,datetime.getNow()} ;//记录发送时间及发送内容
+                    tmpResult.info ="已发送安全码到你的手机，15分钟之内有效！"; 
+                    tmpResult.isOk = true;
+                    return tmpResult; 
+                }
+                else //说明出错了
+                {
+                    tmpResult.info = "发送手机短信失败，运营商返回信息："+tmpResultValue; 
+                    return tmpResult; 
+                } 
+            }
+            else
+            {
+                tmpResult.info =  "手机号码格式非法"; 
+                return tmpResult; 
+            }
+        } }
+        { user, postSafetyCodeToMail "发送安全码到邮箱", { server }, {  }, { string f_mail"邮箱"  }, object.Result, {
+            f_mail = this.rsaDecode(f_mail);
+            var tmpResultValue = new object.Result();
+            if( this.verifyMailFormat(f_mail) != null) 
+            {
+                tmpResultValue.info = "邮箱["+ f_mail +"]格式非法";
+                return tmpResultValue;
+            } 
+            if(byExternal.object.mail.host == null || byExternal.object.mail.host == "") 
+            {
+                tmpResultValue.info ="没有配置邮件运营商，账号、密码，应在系统第一次启动时配置这些参数"; 
+                return tmpResultValue;
+            } 
+            var tmpCodeValue =  this.generateSafetyCode();
+            var tmpSendResult = byExternal.object.mail.send(f_mail,"拜语言密码找回","安全码："+tmpCodeValue+"，有效期15分钟，勿将此码告诉他人，本邮件由系统发送，请勿回复！");  //发送修改连接地址到邮箱
+            this.rLog.write( logState.user, "用户注册发送验证码:"+f_mail +"  "+ ServerSession.getCurrentSession().ip);//log
+            if(tmpSendResult) 
+            {
+                ServerSession.getCurrentSession().other = new OBJECT[]{tmpCodeValue,datetime.getNow()} ;//记录发送时间及发送内容
+                tmpResultValue.info = "已经往您的邮箱["+ f_mail +"]发送了安全码！";
+                tmpResultValue.isOk = true;
+                return tmpResultValue;
+            }
+            else
+            {
+                tmpResultValue.info = "发送安全码失败，邮箱："+f_mail+" ";
+                return tmpResultValue;
+            } 
+        } }
+        { user, getAnonymousUser "获取一个匿名用户", { server,web,client }, {  }, {  }, resultUser "返回一个匿名注册的用户行", {   
+            resultUser tmpResultValue = new resultUser();
+            scene(server)
+            { 
+                var tmpSession = ServerSession.getCurrentSession(); 
+                //by.object.File.write("d:\\s.txt","tmpSession.cookie:"+tmpSession.byCookie+" \r\n",true); 
+                var tmpCookie = tmpSession.byCookie;
+                if(tmpCookie == null || tmpCookie == "") 
+                {
+                  //  by.object.File.appendAllText("d:\\s.txt","tmpCookie is null || '' \r\n");
+                    if(!this.createAnonymousUser(tmpResultValue).isOk) 
+                    {
+                        return tmpResultValue;
+                    }
+                }
+                else 
+                {
+                    var tmpVerifyCookie = this.verifyCookies(tmpCookie);
+                    if(!tmpVerifyCookie.isOk) 
+                    {
+                        tmpResultValue.info = tmpVerifyCookie.info;
+                        return tmpResultValue;
+                    }
+                    var tmpList = select a.iID,a.iName,a.iDisplayName,a.iRank,a.iFreeze from this a  where a.iID in ( select b.iUserID from this.rAnonymous b where b.iID == tmpCookie ) && a.iRank == rank.anonymous; //仅限匿名用户   
+                    if(tmpList.rows.count > 0) 
+                    {
+                        var tmpRow =  tmpList.rows[0]; 
+                        if(tmpRow.iFreeze) 
+                        {
+                            tmpResultValue.info = "当前匿名用户已经被冻结，服务器拒绝提供服务！"; 
+                            return tmpResultValue;
+                        }
+                        //tmpResultValue.loginRow = tmpRow;   //todo orm clone 以下为临时折中 让程序能过
+                        tmpResultValue.loginRow = (select a.*,b.+,enum.uploadMode.userIco.toString() userIcoPath, c.iFileName, c.iExtendName  by userOrm from ( select a.iID,a.iName,a.iDisplayName,a.iFreeze,a.iRank from this a where a.iID == tmpRow.iID) a left join this.rUserAdmin b on a.iID == b.iID left join this.rUserICO c on a.iID == c.iID ).rows[0];
+                        tmpResultValue.isOk = true; 
+                    }
+                    else
+                    {
+                        //tmpResultValue.info = "不存在的用户名["+tmpCookie+"]，请重新注册！";  
+                        if(!this.createAnonymousUser(tmpResultValue).isOk)  //可能是一个合法的用户名，要求其重新登录，默认给一个匿名用户
+                        {
+                            return tmpResultValue;
+                        }
+                    }
+                } 
+                if(tmpResultValue.loginRow != null) //加密
+                {
+                    tmpSession.user = tmpResultValue.loginRow.a.clone();
+                    tmpSession.other = tmpResultValue.loginRow;
+                    if( this.loginSuccessEvent != null) 
+                    {
+                        this.loginSuccessEvent((userOrm)tmpSession.other);
+                    } 
+                    tmpResultValue.loginRow.a.iName = this.rsaEncode(tmpResultValue.loginRow.a.iName);
+                    tmpResultValue.loginRow.a.iDisplayName = this.rsaEncode(tmpResultValue.loginRow.a.iDisplayName);
+                }
+            }
+            scene(web,client) 
+            {
+                tmpResultValue = this.:server getAnonymousUser:(); 
+                if(tmpResultValue.isOk) 
+                { 
+                    if(tmpResultValue.loginRow != null) //解密
+                    { 
+                        tmpResultValue.loginRow.a.iName = this.rsaDecode(tmpResultValue.loginRow.a.iName);
+                        tmpResultValue.loginRow.a.iDisplayName = this.rsaDecode(tmpResultValue.loginRow.a.iDisplayName); 
+                        System.byCookie = tmpResultValue.loginRow.a.iID;
+                       //  Message.alert("debug 887:write cookies "+ System.cookie );
+                       // scene(web)System.currentWindow.log("debug 884:"+System.cookie);
+                    } 
+                    if( this.loginSuccessEvent != null) 
+                    {
+                        this.loginSuccessEvent(tmpResultValue.loginRow);
+                    }
+                    
+                }
+            } 
+            return tmpResultValue;
+        } }
+        { user, createAnonymousUser "新建一个匿名用户", { server}, {  }, { resultUser f_resultUser },resultUser "返回一个匿名注册的用户行", {  
+            var  tmpSession = ServerSession.getCurrentSession(); 
+            var tmpAnonymousUserRow = new Row()~this.rAnonymous;  //自动创建一个匿名用户
+            tmpAnonymousUserRow.iIP = tmpSession.ip ; 
+            
+            var tmpUserRow = new Row()~this; 
+            tmpUserRow.iID = tmpAnonymousUserRow.iUserID = tmpAnonymousUserRow.iID = general.getGuid();
+            tmpUserRow.iName = tmpUserRow.iDisplayName = "匿名用户"+random.next(1111,9999); 
+            tmpUserRow.iFreeze = false;
+            tmpUserRow.iRank = rank.anonymous; 
+            tmpUserRow.iRegDt =  tmpAnonymousUserRow.iRegDt = datetime.getNow(); 
+            tran
+            {
+                var tmpRowCount = insert by tmpAnonymousUserRow; 
+                if (tmpRowCount != 1)
+                {
+                    rollback;
+                    interrupt "对数据库 insert 失败";
+                }
+                tmpRowCount = insert by tmpUserRow; 
+                if (tmpRowCount != 1)
+                {
+                    rollback;
+                    interrupt "对数据库 insert 失败";
+                }
+            }
+            error (string message)
+            {
+                f_resultUser.info = message; 
+                return f_resultUser;
+            }
+            //f_resultUser.loginRow = tmpUserRow;  //todo orm clone 以下为临时折中 让程序能过
+            f_resultUser.loginRow = (select a.*,b.+,enum.uploadMode.userIco.toString() userIcoPath, c.iFileName, c.iExtendName  by userOrm from ( select a.iID,a.iName,a.iDisplayName,a.iFreeze,a.iRank from this a where a.iID == tmpUserRow.iID) a left join this.rUserAdmin b on a.iID == b.iID  left join this.rUserICO c on a.iID == c.iID ).rows[0];
+            f_resultUser.isOk = true;
+            return f_resultUser;
+        } }
+        { user, getSessionUserRow "获取服务端session中的用户行,低安全级别，适用于CMS等低安全要求的项目", { web,client,server }, {  }, {  }, userOrm , {
+            scene(server)
+                return  this.pIsGetServerUserRow && ServerSession.getCurrentSession().user  != null ?  (userOrm)ServerSession.getCurrentSession().other : null ;
+            scene(web,client)
+                return this.pSession;
+        } }
+        { user, autoLoginFromCookie "从cookie信息自动登录,如果存在cookie的话,低安全级别，适用于CMS等低安全要求的项目，并且当前服务端属性this.pIsGetServerUserRow要为True", { client,web }, {  }, {  }, void , {
+            if(this.pSession == null && by.object.System.byCookie != null && by.object.System.byCookie != "")
+                this.pSession = this.:server getSessionUserRow:();
+        } }
+        { user, init "证书初始化 ， generateRsaKey", {  }, {  }, {  }, void, {
+            this.generateRsaKey();
+        } }
+        { user , generateRsaKey "创建RSA公私钥", { server, client, web }, {  }, {  }, void, { 
+            if(this.publicKey == null || this.publicKey == "")
+            { 
+                var tmpKey = byExternal.object.security.rsaCreatePublicKeyAndPrivateKey(); 
+                this.publicKey = tmpKey[0];
+                this.privateKey = tmpKey[1]; 
+            }
+            scene(server)
+            {
+                byCommon.identity.session.clearEvent += ()
+                {
+                    this.publicKeyWebClient.clear();
+                };
+                byCommon.identity.session.removeEvent += (ServerSession f_session)
+                {
+                    if(this.publicKeyWebClient.containsKey(f_session)) 
+                    {
+                        this.publicKeyWebClient.remove(f_session);
+                    }
+                };
+            }
+            scene(web,client) 
+            {
+                if(this.publicKeyServer == null || this.publicKeyServer == "") 
+                { 
+                    this.publicKeyServer = this.:server getPublicKey:();  //请求服务端公钥证书
+                } 
+                var tmpRegPublic =  this.:server regPublicKey:( this.publicKey);  //web或client端向服务端注册公钥证书 
+                if(!tmpRegPublic) 
+                {
+                    Message.alert("当前在向服务器注册RSA公钥证书时没有成功,请重新刷新后再次尝试!");
+                }
+            }
+        } }
+        { user, getPublicKey "获取服务端公钥", { server }, {  }, {  }, string, { 
+            if(this.publicKey == null   || this.publicKey =="") 
+            {
+                this.generateRsaKey();
+            }
+            return this.publicKey;
+        } }
+        { user, regPublicKey "前端在服务器端注册公钥,用于服务端向前端传输时加密,双向RSA加密", { server }, {  }, { string f_publicKey "公钥" }, bool, { 
+            var tmpSession =  ServerSession.getCurrentSession(); 
+            if(!this.publicKeyWebClient.containsKey(tmpSession)) 
+            {
+                this.publicKeyWebClient.add(tmpSession,f_publicKey);
+            } 
+            else
+            {
+                this.publicKeyWebClient[tmpSession] = f_publicKey;
+            }
+            return true;
+        } }
+        { user, rsaEncode "加密文本，文本内容要 <= 245 ，否则以明文处理，即：不做任何的加密操作，没有找到公钥证书则视为不启用本加密，所以在调用本技能前确保是执行过 generateRsaKey 技能产生过证书 ", { server,web,client }, {  }, { string f_encede"要加密的文本" }, string, {
+            if(f_encede == null || f_encede =="" || f_encede.length > 245 ) 
+            {
+                return f_encede;
+            }
+            scene(server) 
+            {
+                var tmpSession = ServerSession.getCurrentSession(); 
+                if(this.publicKeyWebClient.containsKey(tmpSession) ) 
+                {
+                    return byExternal.object.security.rsaEncrypt(f_encede,this.publicKeyWebClient[tmpSession]) ;
+                }
+            }
+            scene(client,web) 
+            {
+                if(this.publicKeyServer != null && this.publicKeyServer != "") 
+                {
+                    return byExternal.object.security.rsaEncrypt(f_encede,this.publicKeyServer) ;
+                }
+            }
+            return f_encede;
+        } }
+        { user, rsaDecode "解密rsa文本信息，自动识别密文、明文", { server, web, client }, {  }, { string f_decode "要解密的文本" }, string " 返回解密后的文本", {
+            if(f_decode == null || f_decode.length != 344 ) 
+            {
+                return f_decode; //原文直接返回 ，说明不是一个 RSA 密文
+            } 
+            return byExternal.object.security.rsaDecrypt(f_decode,this.privateKey);
+        } }
+        { user, md5Plus "密码单向加密，以防止有管理员权限的用户通过网上公开的md5库逆向查询md5对应的密码", { server,web,client }, {  }, { string f_sourcePwd"原始密码" }, string, {
+            StringBuilder tmpSb = new StringBuilder(); 
+            for (int i = 0; i < f_sourcePwd.length; i++) 
+            {
+                tmpSb.append(int.toString((int)f_sourcePwd[i],2));
+                tmpSb.append(f_sourcePwd[f_sourcePwd.length - i-1]);
+                tmpSb.append(int.toString((int)f_sourcePwd[i],16));
+            } 
+            return byExternal.object.security.md5(tmpSb.toString()); 
+        } }
+        { user, verifyPwd "密码合法性验证,合法则返回null,不合法则返回一个字符串错误信息", { server,client,web }, {  }, {string f_pwd "密码" }, string , {
+            if( !f_pwd.isMatch(this.regPwd, RegexMode.multiIgnoreCase )) 
+            {
+                return "密码必须包含数字和字母且长度不得小于8、大于32";               //ruben mod 23-09-13 
+            } 
+            return null;
+        } }
+        { user, verifyUserFormat "格式验证,合法返回NULL,否则返回一个错误说明", { server, client, web }, {  }, {  string f_user "用户名" }, string, { 
+            if(f_user.length < 2 || f_user.length > 32) 
+            {
+                return "用户名长度不得小于2、大于32";
+            }
+            if(!f_user.isMatch(this.regUserName, RegexMode.multiIgnoreCase)) 
+            {
+                return "用户名仅支持数字、字母、下划线以及双字节符（中文、韩文、日文等）"; //ruben mod 23-09-13 
+            } 
+            return null; 
+        } }
+        { user, verifyRegisterUser "注册：用户名合法性校验,合法则返回null,不合法则返回一个字符串错误信息", { server, client, web }, {  }, { string f_user "用户名" }, string, {  
+            scene(server) 
+            {
+                f_user = this.rsaDecode(f_user);
+            }
+            var tmpUserFormat = this.verifyUserFormat(f_user);
+            if(tmpUserFormat != null) 
+            {
+                return tmpUserFormat; 
+            }
+            scene (server) //此段加入编译分支
+            {
+                var tmpResultValue = this.userExists(f_user);
+                return tmpResultValue ? "该用户已经存在！" : null ;
+            }
+            scene(client,web) 
+            {
+                return this.:server verifyRegisterUser:(this.rsaEncode(f_user));
+            }       
+        } }
+        { user , userExists "user存在吗 ，存在返回 true", { server, client, web }, {  }, { string f_user "用户名" }, bool"存在返回 true", {
+            scene(server) 
+            {
+                f_user = this.rsaDecode(f_user); 
+            } 
+            if(this.verifyUserFormat(f_user) != null) //格式不通过直接返回
+            {
+                return false;
+            }
+            scene(server) 
+            {
+                var tmpList = select a.iID from this a where a.iName == f_user;  //否则连库验证 
+                return tmpList.rows.count > 0 ? true : false ;
+            } 
+            scene(web,client)
+            {
+                return this.:server userExists:(this.rsaEncode(f_user));
+            }
+        } }
+        { userICO, getAcceptType "获取允许的文件名", { client, web }, {  }, {  }, string, {
+            return this.pAllowUploadFileType.replace(",",",.").replaceReg("(^\\,)|(\\.\\,$)","", RegexMode.none);
+        } }
+        { userICO, getIcoUrlPath "获取图标完整URL路径", {  web,server, client }, {  }, { string f_pathICO "图标" }, string, { 
+            string tmpServerPath;
+            scene(server)
+            {
+                tmpServerPath =  ServerSession.getCurrentSession().url;
+            }
+            scene(web,client) 
+            {
+                tmpServerPath =  System.serverURL;
+            }
+            return tmpServerPath.replaceReg("[^/]+$","", RegexMode.none)  + uploadMode.userIco.toString() +  "/" + f_pathICO.replaceReg("[\\\\]+","/", RegexMode.none);
+        } }
+        { userICO, getIcoDiskPath "获取图标完整磁盘路径名，即在这个磁盘中的位置", { server }, {  }, { string f_fileName "图标文件名，包括扩展名", string f_extendName "扩展名，不加.点" ,enum.uploadMode f_uploadMode"文件分类"}, string, { 
+            return getIcoDiskPath( f_fileName+"."+f_extendName , f_uploadMode ) ;
+        } }
+        { userICO, getIcoDiskPath "获取图标完整磁盘路径名，即在这个磁盘中的位置", { server }, {  }, { string f_fileFullName "图标完整文件名包括扩展名"  ,enum.uploadMode f_uploadMode"文件分类"}, string, { 
+            var tmpDir = System.currentDirectory+f_uploadMode.toString();
+            if(!Directory.exists(tmpDir)) //确定目录存在
+                Directory.createDirectory( tmpDir );
+                
+            return tmpDir+"\\"+f_fileFullName ;
+        } }
+        { userICO, fileUpload"文件上传", { server,web,client }, {  }, { byte[] f_fileBytes , enum.uploadMode f_dirMode "目录，特定两个枚举目录是出于安全的考滤" , string f_extendName"文件扩展名" }, Result "执行结果,如果成则，则把图标在服务端的路径放在当前对象的info属性中", { 
+            if( f_extendName == null ||  this.pAllowUploadFileType.indexOf(","+f_extendName.toLower()+",") == -1 )//验证是不是指定的文件格式，防止用户传一些非法的文件格式
+                return new Result(){info = "仅支持上传扩展名为["+ this.pAllowUploadFileType.replaceReg("(^,)|(,$)","", RegexMode.none) +"]格式的文件！"}; //去掉两边的逗号，更友好的向用户展示
+            
+            if( f_dirMode == uploadMode.userIco )
+            { 
+                if(f_fileBytes.length >  this.pUploadUserICOFileSize)
+                    return new Result(){info = "文件太大，不能大于["+ ( this.pUploadUserICOFileSize / 1024  ) +"]K！" };
+            }
+            else if(f_dirMode == uploadMode.contentOther) 
+            {
+                if(f_fileBytes.length >  this.pUploadFileSize)
+                    return new Result(){info =  "文件太大，不能大于["+ ( this.pUploadFileSize / 1024  ) +"]K！"};;
+            }
+            scene(server) 
+            { 
+                if(!this.rUser.confirmUserIsLogin()) //验证用户是否登录 
+                    return new Result(){info = "当前用户还没有登录！" };
+                
+                try
+                {
+                  //  var tmpDir = System.currentDirectory+f_dirMode.toString(); 
+                    //if(!Directory.exists(tmpDir)) //确定目录存在
+                    //{
+                    //    Directory.createDirectory( tmpDir );
+                    //} 
+                    Row~userUpload tmpUploadRow = new Row()~this.rUser.rUserUpload;
+                    tmpUploadRow.iID = byCommon.identity.general.getGuid(); 
+                    tmpUploadRow.iDT = datetime.getNow();
+                    tmpUploadRow.iUserID = ( (Row~user)ServerSession.getCurrentSession().user ).iID ; 
+                    tmpUploadRow.iFileSize = f_fileBytes.length / 1024;
+                    if( f_dirMode == uploadMode.userIco ) 
+                    {
+                        Row~userICO tmpUserIcoRow = new Row()~this;
+                        tmpUserIcoRow.iID =  tmpUploadRow.iUserID;// ( (Row~user)ServerSession.getCurrentSession().user ).iID ;
+                        tmpUserIcoRow.iIcoFile = convert.base64ToString( f_fileBytes ); //转成base64 后存库
+                        tmpUserIcoRow.iFileName = byCommon.identity.general.getGuid();
+                        tmpUserIcoRow.iExtendName = f_extendName;
+                        tmpUserIcoRow.iUploadDt = datetime.getNow();
+                        List<Row~userICO> tmpOldIcoList = ( select a.iID,a.iFileName,a.iExtendName from  this a where a.iID == tmpUserIcoRow.iID ).rows; 
+                        if(tmpOldIcoList.count > 0 ) //delete原图标
+                        {
+                            string tmpPathFileName = this.getIcoDiskPath(tmpOldIcoList[0].iFileName,tmpOldIcoList[0].iExtendName ,f_dirMode);
+                            if(File.exists(tmpPathFileName))
+                                File.delete(tmpPathFileName);
+                        }
+                        string newIcoPath = getIcoDiskPath( tmpUserIcoRow.iFileName , f_extendName ,f_dirMode);
+                        File.write( newIcoPath, f_fileBytes,false); //同时写入磁盘 以备用户访问
+                        
+                        tmpUploadRow.iSummery="上传图标"; 
+                        tmpUploadRow.iFileName = tmpUserIcoRow.iFileName  +"."+  f_extendName;
+                        if(tmpOldIcoList.count > 0 )  //确定是不是存在
+                        {
+                            tran
+                            {
+                                insert by tmpUploadRow; //上传日志
+                                update by tmpUserIcoRow set iIcoFile,iFileName,iExtendName,iUploadDt; 
+                            }
+                            error (string errorInfo)
+                            {
+                                return new Result(){info =  "执行SQL失败："+errorInfo};
+                            }
+                        }
+                        else
+                        {
+                            tran
+                            {
+                                insert by tmpUploadRow; //上传日志
+                                insert by tmpUserIcoRow;
+                            }
+                            error (string errorInfo)
+                            {
+                                return new Result(){info =  "执行SQL失败："+errorInfo};
+                            }
+                        }
+                        return new Result(){isOk = true,info =  f_dirMode.toString()+"\\"+ tmpUserIcoRow.iFileName+"."+f_extendName};
+                    }
+                    else if( f_dirMode == uploadMode.contentOther )
+                    {
+                        string tmpFileName = byCommon.identity.general.getGuid();
+                        tmpUploadRow.iSummery="上传文件"; 
+                        tmpUploadRow.iFileName = tmpFileName +"."+ f_extendName;
+                        insert by tmpUploadRow; //上传日志
+                        File.write( this.getIcoDiskPath( tmpFileName , f_extendName , f_dirMode ) , f_fileBytes,false); //同时写入磁盘 以备用户访问 
+                        return new Result(){isOk = true,info =  f_dirMode.toString()+"\\"+ tmpUploadRow.iFileName };
+                    }
+                    else
+                    {
+                        return new Result(){info ="当前仅允许上传用户图标文件！"};
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return new Result(){info =  ex.message +"["+ System.currentDirectory+"]" };
+                } 
+            }
+            scene(web,client)
+            {
+                Result tmpResult = this.:server fileUpload:( f_fileBytes ,  f_dirMode , f_extendName );
+                if(tmpResult.isOk && f_dirMode == uploadMode.userIco ) //如果成功，则要更新当前端的UI界面上的用户图标，触发图标改变事件
+                { 
+                    string icoRelativePath = tmpResult.info;
+                    string[] strings = icoRelativePath.split('\\');//第二项为文件名
+                    this.rUser.pSession.userIcoPath = strings[0];
+                    string[] strings2 = strings[1].split('.');//第一项文件名，第二项文件类型
+                    this.rUser.pSession.iFileName = strings2[0];
+                    this.rUser.pSession.iExtendName = strings2[1];
+
+                    if( this.userICOChangeEvent != null )
+                    {
+                        this.userICOChangeEvent(this.rUser.pSession);
+                    } 
+                }
+                return  tmpResult;
+            }
+        } }
+        { userAdmin, getAdmin "确定用户是不是管理员,没有找则返回 null ", { server }, {  }, { string f_userID "用ID" }, Row~userAdmin "返回一个管理员行", {
+            if(this.pAdminDic.count == 0)
+            {
+                var  tmpAdminList = (select a.+ from this a).rows; 
+                foreach ( var item in tmpAdminList )
+                    this.pAdminDic.add(item.iID,item);
+            }
+            if( !this.pAdminDic.containsKey(ServerSession.getCurrentSession().byCookie) ) //如果当前用户不是管理员，就不允许查
+                return null;
+                
+            return this.pAdminDic.containsKey(f_userID) ? this.pAdminDic[ f_userID] : null ; //如果不存在，再看一下数据库中是不是存在，主要是考虑用户在缓存之前即刚刚通过界面新加的管理员这种情况  
+        } } 
+        { userAdmin, isAdmin "确定用户是不是管理员", { server, web, client }, {  }, {  }, bool , {
+            scene(server) 
+                return this.getAdmin( ServerSession.getCurrentSession().byCookie ) ==  null ? false : true ;
+            scene(web,client) 
+            {
+                if(this.rUser.pSession != null && this.rUser.pSession.a.iID != null)
+                {
+                    return this.rUser.pSession.b.iID != null && this.rUser.pSession.b.iID != "" &&  this.rUser.pSession.a.iID == this.rUser.pSession.b.iID ?true :false;
+                }
+                return false;
+            }
+        } } 
+        { userAdmin, getAdmin"获取所有的管理员列表,敏感数据，跨端rsa加密", { server, web, client }, {  }, {  }, List<adminOrm> "返回一个管理员列表，本skill会验证权限,无权则返回 null ", {
+            if(!this.isAdmin()) //无权限则直接返回
+                return null; 
+                
+            scene(server) 
+            {
+                var tmpList = ( select a.+,b.iName,b.iDisplayName,b.iMobile by adminOrm from this a,user b where a.iID == b.iID ).rows; 
+                foreach (var item in tmpList) //rsa 加密
+                {
+                    item.a.iID = this.rUser.rsaEncode( item.a.iID ); 
+                    item.iDisplayName =   this.rUser.rsaEncode(item.iDisplayName); 
+                    item.iMobile = this.rUser.rsaEncode(item.iMobile); 
+                    item.iName = this.rUser.rsaEncode(item.iMobile); 
+                } 
+                return tmpList;
+            }
+            scene(web,client)
+            {
+                var tmpList =  this.:server  getAdmin:(); //返回的是rsa 密文
+                if(tmpList == null)  
+                    return null;
+                
+                foreach (var item in tmpList) //rsa 解密
+                {
+                    item.a.iID = this.rUser.rsaDecode( item.a.iID ); 
+                    item.iDisplayName =   this.rUser.rsaDecode( item.iDisplayName ); 
+                    item.iMobile = this.rUser.rsaDecode( item.iMobile ); 
+                    item.iName = this.rUser.rsaDecode( item.iMobile ); 
+                }
+                return tmpList;
+            }
+        } }
+        { userAdmin, adminAddRemove "加密: 管理员：增加，删除 ", { server , web , client }, {  }, { Row~userAdmin f_adminRow"管理员行" , enum.Action f_action "仅支持 delete & insert" }, Result , {
+            if(f_action != Action.delete && f_action != Action.insert) 
+                return new Result(){info ="仅支持：增加与删除！"};
+                
+            if( !this.isAdmin() )
+                return new Result(){info ="权限不够，禁止的操作！"};
+            
+            scene(server)
+            {
+                f_adminRow.iID = this.rUser.rsaDecode(f_adminRow.iID); //解密
+                f_adminRow.iDt = datetime.getNow();
+                f_adminRow.iUserMode = adminMode.general;
+                try
+                {
+                    if( f_action == Action.delete ) 
+                        insert by f_adminRow;
+                    else if( f_action == Action.insert )
+                        delete by f_adminRow;
+                }
+                catch (Exception ex)
+                {
+                    return new Result(){info = ex.message };
+                }
+                return new Result(){isOk =true} ;//说明成功
+            }
+            scene(web,client) 
+            {
+                f_adminRow.iID = this.rUser.rsaEncode(f_adminRow.iID); //加密  敏感数据跨端
+                var tmpList = this.:server adminAddRemove:( f_adminRow , f_action ); 
+                return tmpList;
+            }
+        } }
+        { userAdmin, getPopupUser "获取弹窗展示的 user 信息", { server, web, client }, {  }, { string f_keyword "要查询的关键词" }, List<Row~user>, {
+            if( !this.isAdmin() )
+                return null ; // 权限不够，禁止的操作！
+            
+            scene(server)
+            {
+                List<Row~user> tmpList ;
+                if(f_keyword != null && f_keyword != "")
+                    tmpList = (select a.iID,a.iName,a.iDisplayName,a.iMobile,a.iMail from this.rUser a where int.parse(  a.iFreeze ) == 0 && ( a.iID ==f_keyword || a.iMail==f_keyword || a.iMobile == f_keyword || a.iDisplayName like "%"+f_keyword+"%" || a.iName like "%"+f_keyword+"%" ) limit 0,10   ).rows;
+                else
+                    tmpList = (select a.iID,a.iName,a.iDisplayName,a.iMobile,a.iMail from this.rUser a order by a.iRegDt desc  limit 0,10   ).rows; 
+                    
+                foreach (var item in tmpList) //敏感数据，加密后向客户端发送
+                {
+                    item.iID = this.rUser.rsaEncode(item.iID);
+                    item.iName = this.rUser.rsaEncode(item.iName);
+                    item.iDisplayName = this.rUser.rsaEncode(item.iDisplayName);
+                    item.iMobile = this.rUser.rsaEncode(item.iMobile);
+                    item.iMail = this.rUser.rsaEncode(item.iMail);
+                } 
+                return tmpList;
+            }
+            scene( web , client ) 
+            {
+                var  tmpList = this.:server getPopupUser:( f_keyword ); 
+                if(tmpList == null) 
+                    return null;
+                    
+                foreach (var item in tmpList)
+                {
+                    item.iID = this.rUser.rsaDecode(item.iID);
+                    item.iName = this.rUser.rsaDecode(item.iName);
+                    item.iDisplayName = this.rUser.rsaDecode(item.iDisplayName);
+                    item.iMobile = this.rUser.rsaDecode(item.iMobile);
+                    item.iMail = this.rUser.rsaDecode(item.iMail);
+                } 
+                return tmpList;
+            }
+        } }
+        
+    }
+}

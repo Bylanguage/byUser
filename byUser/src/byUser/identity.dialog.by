@@ -1,0 +1,23 @@
+﻿ku byUser
+{
+    system biao identity.dialog "身份窗体表" (
+    string belong "所属类型"
+    , string name "名称"
+    , string[] scenes "场景"
+    , string kind "类型类别"
+    , string inheritance "继承项"
+    , string[] implementations "实现接口")
+    {
+        { user , diLogin "登录", , dialog,,  }
+        { user , diModifPwd "密码修改", , dialog,,  } 
+        { user , diUserReg "用户注册", { client, web }, dialog, , {  } } 
+        { user , dlForgetPwd "密码找回" , { client, web }, dialog, , {  } }
+        { user , RetrievePassword "重设密码找回", { client, web }, dialog, , {  } } 
+        { user , diUserLog "用户登录日志", { client, web }, dialog, , {  } } 
+        { user , modifyInfo"修改个人信息", { client, web }, dialog, , {  } }
+        // { user , diAdmin "管理员管理", { client, web }, dialog, by.identity.Table.Dialog, {  } } 
+        { userICO , diUploadICO "上传用户图标", {  web }, dialog, , {  } }
+        { userAdmin, adminManager"管理员管理", {  web }, dialog, , {  } }
+        { user, popupUser"弹窗选择用户", {  web }, dialog, , {  } }
+    }
+}

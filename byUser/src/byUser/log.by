@@ -1,0 +1,53 @@
+﻿ku byUser
+{
+    data biao log [primaryKey(iD)] (
+    string iD "日志编号" [by.identity.ID, notNull]
+    , by.enum.SceneType sceneType "日志产生的场景" [by.identity.Attribute]
+    , string userID "用户ID" [by.identity.Reference,ref:user.ID, notNull]
+    , string userName "用户名" [by.identity.Attribute, notNull]
+    , byLog.enum.logState state "日志分类" [by.identity.Attribute]
+    , string ip "ip地址" [by.identity.Attribute]
+    , string summary "说明" [by.identity.Attribute]
+    , datetime dt "登录时间" [by.identity.Attribute])
+    {
+        
+    }
+
+    config biao log.source "数据源配置表" (
+    string name "名称"
+    , string mode "模式"
+    , string[] actions "动作"
+    , string fieldAccess "字段访问"
+    , string[] settings "设置")
+    {
+        { iD, user, { select, insert }, iD, { name: "iD", text: "日志编号" } }
+        { sceneType "获取枚举类型的枚举值数组", client, { insert, delete, update, select }, sceneType, { name: "sceneType", text: "日志产生的场景", value: SceneType.getValues() } }
+        { userID, user, { insert, delete, update, select }, userID, { name: "userID", text: "用户ID" } }
+        { userName, user, { insert, delete, update, select }, userName, { name: "userName", text: "用户名" } }
+        { state "获取枚举类型的枚举值数组", client, { insert, delete, update, select }, state, { name: "state", text: "日志分类", value: byLog.enum.logState.getValues() } }
+        { ip, user, { insert, delete, update, select }, ip, { name: "ip", text: "ip地址" } }
+        { summary, user, { insert, delete, update, select }, summary, { name: "summary", text: "说明" } }
+        { dt "获取一个 DateTime对象, 该对象设置为此计算机上的当前日期和时间", server, { insert, delete, update, select }, dt, { name: "dt", text: "登录时间", value: datetime.getNow() } }
+    }
+
+    config biao log.flow "数据流配置表" (
+    string name "名称"
+    , string action "动作"
+    , string[] sources "数据源(source.name)")
+    {
+        { insert, insert, { iD, sceneType, userID, userName, state, ip, summary, dt } }
+        { update, update, { sceneType, userID, userName, state, ip, summary, dt } }
+        { delete, delete, { iD } }
+        { select, select, { iD, sceneType, userID, userName, state, ip, summary, dt } }
+        { popup, select, { iD } }
+    }
+
+    config biao log.control "控件配置表" (
+    string name "名称"
+    , string[] types "控件类型"
+    , string[] sources "数据源(source.name)")
+    {
+        { edit, { EditArea, Grid }, { sceneType, userID, userName, state, ip, summary, dt } }
+        { popup, { Grid, QueryArea }, { iD } }
+    }
+}

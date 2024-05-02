@@ -1,0 +1,742 @@
+﻿ku byUser
+{
+    system biao identity.dialog.method "身份窗体方法表" (
+    string belong "所属类型"
+    , string name "名称"
+    , string[] scenes "场景"
+    , string[] modifiers "修饰符"
+    , string[] parameters "参数"
+    , string returnType "返回类型"
+    , string body "方法体")
+    {
+        { user.diLogin, diLogin , , ,{} ,   ,{ 
+            scene(web)
+            {
+                this.width = 450;
+                this.height = 320; 
+                cLblName.top = 0;
+                cLblName.left = 80;
+                cTxtName.top = 40;
+                cTxtName.left = 80;
+                cLblPwd.top = 80;
+                cLblPwd.left = 80;
+                cTxtPwd.top = 120;
+                cTxtPwd.left = 80;
+                cBtnLogin.left = 120;
+                cBtnLogin.top = 180;
+                cBtnReg.left = 220;
+                cBtnReg.top = 180;
+                cLblFindPwd.left = 80;
+                cLblFindPwd.top = 215;
+                cLblName.element.addClass("by-user-nameLabel");
+                cTxtName.element.addClass("by-user-nameTextBox");
+                cLblPwd.element.addClass("by-user-passwordLabel");
+                cTxtPwd.element.addClass("by-user-passwordTextBox");
+                
+                cBtnLogin.element.addClass("by-user-loginButton");
+                cBtnReg.element.addClass("by-user-registButton");
+                cLblFindPwd.element.addClass("by-user-findPasswordLabel");
+            }
+            var tmpInitAllow = new Control[]{this.cBtnLogin,this.cBtnReg,this.cTxtName,this.cTxtPwd};
+            this.cTxtName.text = "admin";  //演示  //演示系统账号
+            this.cTxtPwd.text = "admin123"; //演示
+
+            :identity this:.init();// RSA  证书初始化
+			this.cBtnLogin.click += this.startLogin;  
+			this.cBtnReg.click+=startReg;
+            this.cLblFindPwd.click +=startFindPwd;
+		} }
+        { user.diLogin, startFindPwd "找回密码点击", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            var tmpDlForgetPwd = new dlForgetPwd(); 
+		    tmpDlForgetPwd.showDialog();
+        } }
+        { user.diLogin, startReg "注册按钮点击", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            var  tmpUserRegDialog = :identity this:.new diUserReg(); 
+		    tmpUserRegDialog.showDialog();
+        } }
+        { user.diLogin, startLogin "登录按钮点击初始 用户登录", , , {object.Object f_sender,object.Object f_e} ,void,{ 
+            this.cBtnLogin.isEnabled = false;
+            var tmpUser = this.cTxtName.text.trim(); 
+            var tmpUserVerify = :identity this:.verifyUserFormat(tmpUser);
+            if( tmpUserVerify != null) 
+            {
+                Message.alert( tmpUserVerify );
+                this.cBtnLogin.isEnabled = true;
+                return;
+            }
+            var tmpPwd = this.cTxtPwd.text.trim();  
+            var tmpPwdVerify =:identity this:.verifyPwd(tmpPwd);
+            if( tmpPwdVerify != null) 
+            {
+                Message.alert(tmpPwdVerify);
+                this.cBtnLogin.isEnabled = true;
+                return;
+            }
+            tmpPwd = md5Plus(tmpPwd);
+            var tmpResultValue = :identity this:.userLogin(tmpUser,tmpPwd);  
+            if(tmpResultValue.isOk)
+            {
+                this.close();
+            }
+            else
+            {
+                object.Message.alert("登录失败："+tmpResultValue.info); //说明登录失败了 
+            } 
+            this.cBtnLogin.isEnabled = true;
+		} }
+     
+        { user.diModifPwd, diModifPwd "密码修改", , {  }, {  }, , {  
+            scene(web)
+            {
+                this.width = 450;
+                this.height = 350; 
+                
+                cLblSourcePwd.top = 0;
+                cLblSourcePwd.left = 80;
+                cTxtSourcePwd.top = 40;
+                cTxtSourcePwd.left = 80;
+                
+                cLblNewPwd.top = 80;
+                cLblNewPwd.left = 80;
+                cTxtNewPwd.top = 120;
+                cTxtNewPwd.left = 80;
+                
+                cLblConfirmNewPwd.top = 160;
+                cLblConfirmNewPwd.left = 80;
+                cTxtConfirmNewPwd.top = 200;
+                cTxtConfirmNewPwd.left = 80;
+                
+                cBtnSure.left = 120;
+                cBtnSure.top = 260;
+                cBtnCancel.left = 220;
+                cBtnCancel.top = 260;
+            }
+            this.pVerifyTextbox.add(cLblNewPwd,cTxtNewPwd,false,:identity this:.regPwd,"密码必须包含数字和字母且长度不得小于6、大于32",32); 
+            this.pVerifyTextbox.add(cLblSourcePwd,cTxtSourcePwd,false,:identity this:.regPwd,"密码必须包含数字和字母且长度不得小于6、大于32",32);
+            this.cBtnSure.click+=btnSure_click;//确定修改
+            this.cBtnCancel.click+=btnCancel_click;//取消修改
+        } }
+        { user.diModifPwd, btnCancel_click "取消按钮点击事件", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            close();
+        } }
+        { user.diModifPwd, btnSure_click "确定按钮点击事件", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            string tmpSourcePwd = this.cTxtSourcePwd.text.trim();
+            string tmpNewPwd = this.cTxtNewPwd.text.trim(); 
+            string confirmPwd = this.cTxtConfirmNewPwd.text.trim();
+            if(!this.pVerifyTextbox.verify()) 
+            {
+                return;
+            }
+            if(tmpNewPwd != confirmPwd)
+            {
+                Message.alert("两次输入的新密码不一致！");
+                return;
+            }
+            var  tmpResultValue = :identity this:.userPwdModif( :identity this:.md5Plus(tmpSourcePwd) , :identity this:.md5Plus(tmpNewPwd) , :identity this:.pSession.a.iID );
+            if(tmpResultValue.isOk) 
+            {
+                object.Message.alert("修改成功！");
+                this.close();
+            }
+            else
+            {
+                object.Message.alert( "修改失败："+ tmpResultValue.info );
+            }
+        } }
+    
+        { user.diUserReg, diUserReg "用户注册", , {  }, {  }, , {  
+            scene(web)
+            {
+                this.width = 450;
+                this.height = 650; 
+                
+                cLblName.top = 0;
+                cLblName.left = 80;
+                cTxtName.top = 40;
+                cTxtName.left = 80;
+                
+                cLblPwd.top = 80;
+                cLblPwd.left = 80;
+                cTxtPwd.top = 120;
+                cTxtPwd.left = 80;
+                
+                cLblConfirmPwd.top = 160;
+                cLblConfirmPwd.left = 80;
+                cTxtConfirmPwd.top = 200;
+                cTxtConfirmPwd.left = 80;
+                
+                cLblMobile.top = 240;
+                cLblMobile.left = 80;
+                cTxtMobile.top = 280;
+                cTxtMobile.left = 80;
+                
+                cLblMail.top = 320;
+                cLblMail.left = 80;
+                cTxtMail.top = 360;
+                cTxtMail.left = 80;
+                
+                cLblSafetyCode.top = 400;
+                cLblSafetyCode.left = 80;
+                cTxtSafetyCode.top = 440;
+                cTxtSafetyCode.left = 80;
+                
+                cLblSendCode.top = 468;
+                cLblSendCode.left = 80;
+                
+                cBtnReg.left = 120;
+                cBtnReg.top = 528;
+                cBtnCancel.left = 220;
+                cBtnCancel.top = 528;
+            }
+            if(:identity this:.pSafetyCode) 
+            {
+                this.cLblSendCode.visible = this.cLblSafetyCode.visible = this.cTxtSafetyCode.visible = true;
+            }
+            else
+            {
+                this.cLblSendCode.visible = this.cLblSafetyCode.visible = this.cTxtSafetyCode.visible = false;
+            }
+
+            this.pVerifyTextbox.add(cLblName,this.cTxtName,true,:identity this:.regUserName,"用户名长度2-32之间，仅支持数字、字母、下划线",32);
+            this.pVerifyTextbox.add(cLblMobile,cTxtMobile,true,:identity this:.pRegMobile,"手机号码位数必须是11位，必须是数字！",11);
+            this.pVerifyTextbox.add(cLblMail,cTxtMail,true,:identity this:.pRegMaile,"邮箱格式非法！",32);
+            this.pVerifyTextbox.add(cLblPwd,cTxtPwd,true,:identity this:.regPwd, "密码必须包含数字和字母且长度不得小于8、大于32",32);
+            this.pVerifyTextbox.add(cLblConfirmPwd,cTxtConfirmPwd,true, :identity this:.regPwd , "密码必须包含数字和字母且长度不得小于8、大于32",32);
+            
+            cTxtName.leave+=cTxtName_leave;
+            cTxtMobile.leave+=cTxtMobile_leave;
+            cTxtMail.leave+=cTxtMail_leave;
+            cTxtPwd.leave+=cTxtPwd_leave;
+            cTxtConfirmPwd.leave+=cTxtConfirmPwd_leave;
+            cLblSendCode.click+=cLblSendCode_click;             
+            this.cBtnReg.click += reg ;
+        } }
+        { user.diUserReg, cLblSendCode_click "发送安全码点击事件", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            if(!this.pVerifyTextbox.verify()) 
+            {
+                return;
+            }
+            var tmpResultValue = :identity this:.postSafetyReg(this.cTxtMail.text.trim(),this.cTxtMobile.text.trim()); 
+            if(tmpResultValue.isOk) 
+            {
+                this.cBtnReg.isEnabled = true;
+                if(:identity this:.pSafetyCode) 
+                { 
+                    this.cLblSafetyCode.visible = true;
+                    this.cTxtSafetyCode.visible = true;
+                }
+                this.cLblSendCode.visible = false;
+                this.cLblConfirmPwd.visible = this.cLblMail.visible = this.cLblMobile.visible = this.cLblPwd.visible = this.cLblName.visible = false;
+                this.cTxtConfirmPwd.visible = this.cTxtMail.visible = this.cTxtMobile.visible = this.cTxtPwd.visible = this.cTxtName.visible = false;
+            }
+            else
+            {
+                Message.alert("发送安全码失败："+tmpResultValue.info);
+            }
+        } }
+        { user.diUserReg, cTxtConfirmPwd_leave "确认密码文本框离开事件，检验是否合法", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            if(this.cTxtPwd.text.trim() != this.cTxtConfirmPwd.text.trim()) 
+            {
+                this.pVerifyTextbox.showError(cTxtConfirmPwd,"两个密码不一致！" ); //为避免事件无限循环
+                return;
+            } 
+            this.pUserRow.iPassword = this.cTxtPwd.text.trim();
+        } }
+        { user.diUserReg, cTxtPwd_leave "密码文本框离开事件，检验是否合法", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            var tmpPwdInfo = :identity this:.verifyPwd(this.cTxtPwd.text.trim());
+            if(tmpPwdInfo != null) 
+            {
+                this.pVerifyTextbox.showError(cTxtPwd,tmpPwdInfo ); //为避免事件无限循环
+                return;
+            } 
+        } }
+        { user.diUserReg, cTxtMail_leave "邮箱文本框离开事件，检验是否合法与重复", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            var tmpMail = this.cTxtMail.text.trim(); 
+            var tmpResultValue = :identity this:.verifyRegMail(tmpMail); //服务端再次验证，因为服务端该方法存在连数据库验证的
+            if(tmpResultValue != null) 
+            {
+                this.pVerifyTextbox.showError(cTxtMail,tmpResultValue ); //为避免事件无限循环
+                return;
+            }
+        } }
+        { user.diUserReg, cTxtMobile_leave "手机文本框离开事件，检验是否合法与重复", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            var tmpMobile = this.cTxtMobile.text.trim();
+            var tmpResultValue = :identity this:.verifyMobileFormat(tmpMobile); 
+            if( tmpResultValue != null ) 
+            {
+                this.pVerifyTextbox.showError(cTxtMobile,tmpResultValue ); 
+                return; 
+            } 
+            var tmpExists = :identity this:.verifyMobileExists(tmpMobile); //调用服务端，进行再次验证，因为服务端该方法存在连数据库验证的
+            if( tmpExists  ) 
+            {
+                this.pVerifyTextbox.showError(cTxtMobile,"手机号码已经存在！" ); 
+                return;
+            } 
+        } }
+        { user.diUserReg, cTxtName_leave "用户名文本框离开事件，检验是否合法与重复", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            var tmpUser = this.cTxtName.text.trim();
+            var tmpVerify = :identity this:.verifyRegisterUser(tmpUser); //调用客户端验证
+            if( tmpVerify != null) 
+            {
+                this.pVerifyTextbox.showError(cTxtName,tmpVerify);
+                return;
+            } 
+            tmpVerify = :identity this:.verifyRegisterUser(tmpUser); //服务端再次验证，因为服务端该方法存在连数据库验证的
+            if( tmpVerify != null) 
+            {
+                this.pVerifyTextbox.showError(cTxtName,"用户名非法:"+ tmpVerify ); 
+                return;
+            }  
+        } }
+        { user.diUserReg, reg "开始注册", , {  }, { OBJECT sender, EventArgs args }, void, { 
+            if( :identity this:.pSafetyCode && !:identity this:.verifySafetyCodeFormat(this.cTxtSafetyCode.text.trim()) ) 
+            {
+                Message.alert("请填入发送到你手机或邮箱中的验证码后，再尝试该操作！");
+                return;
+            }
+            this.pUserRow.iID = byCommon.identity.general.getGuid();
+            this.pUserRow.iName = this.cTxtName.text.trim();
+            this.pUserRow.iPassword = this.cTxtConfirmPwd.text.trim();
+            this.pUserRow.iMobile = this.cTxtMobile.text.trim();
+            this.pUserRow.iMail = this.cTxtMail.text.trim();//ruben mod 23-09-19 将赋值语句从leave事件移动到click事件中
+            if(!this.pVerifyTextbox.verify())  //数据校验不合法
+            {
+                return; 
+            }
+            //对用户的敏感信息进行rsa加密--begin
+            this.pUserRsaRow.iID= :identity this:.rsaEncode(byCommon.identity.general.getGuid());
+            this.pUserRsaRow.iName= :identity this:.rsaEncode(this.pUserRow.iName);
+            this.pUserRsaRow.iPassword = :identity this:.rsaEncode( md5Plus(this.pUserRow.iPassword) ); //ruben mod 23-09-19 登录中密码进行了MD5加密，因此注册应双重加密
+            this.pUserRsaRow.iMobile= :identity this:.rsaEncode(this.pUserRow.iMobile);
+            this.pUserRsaRow.iMail= :identity this:.rsaEncode(this.pUserRow.iMail); 
+            //对用户的敏感信息进行rsa加密--end
+            var tmpResultValue = :identity this:.:server userReg:(this.pUserRsaRow ,this.cTxtSafetyCode.text.trim()); 
+            if(tmpResultValue.isOk) 
+            {
+                object.Message.alert("恭喜，注册成功！");
+                //自动登录操作
+                if(this.regSuccess != null) 
+                { 
+                    this.regSuccess(this.pUserRow); //触发注册成功事件
+                }
+                this.close();
+            } 
+            else
+            {
+                object.Message.alert("注册失败："+tmpResultValue.info); 
+                this.cBtnReg.isEnabled = false;
+                if(:identity this:.pSafetyCode)
+                { 
+                    this.cLblSafetyCode.visible = false;
+                    this.cTxtSafetyCode.visible = false; 
+                }
+                this.cLblSendCode.visible = true;
+                this.cLblConfirmPwd.visible = this.cLblMail.visible = this.cLblMobile.visible = this.cLblPwd.visible = this.cLblName.visible = true;
+                this.cTxtConfirmPwd.visible = this.cTxtMail.visible = this.cTxtMobile.visible = this.cTxtPwd.visible = this.cTxtName.visible = true;
+            }
+        } } 
+       
+        { user.dlForgetPwd, dlForgetPwd "忘记密码或找回密码", , {  }, {  }, , { 
+            var tmpRd = new RadioButton(){name="user", text = "用户名"};  
+            this.cRdGroup.add(tmpRd); 
+            tmpRd = new RadioButton(){name="mail",text = "邮箱"};
+            this.cRdGroup.add(tmpRd);
+            tmpRd = new RadioButton(){name="mobile",text = "手机号"};
+            this.cRdGroup.add(tmpRd);
+            scene(web)
+            {
+                width = 350;
+                height = 300;
+                cRdGroup.top = 0;
+                cRdGroup.left = 10;
+                cLblValue.top = 60;
+                cLblValue.left = 10;
+                cTxtValue.top = 100;
+                cTxtValue.left = 10;
+                
+                cBtnSend.left = 10;
+                cBtnSend.top = 160;
+                cBtnCancel.left = 180;
+                cBtnCancel.top = 160;
+            }
+            this.pVerifyTextbox.add(this.cLblValue,this.cTxtValue,true,"^[\x00-\uffff]{2,32}$","",32);
+            cBtnCancel.click +=cBtnCancel_click;
+            cRdGroup.selectionChanged+=cRdGroup_selectionChanged;
+            cTxtValue.mouseUp+=cTxtValue_mouseUp;
+            cBtnSend.click+=cBtnSend_click;
+            
+        } }
+        { user.dlForgetPwd, cBtnSend_click "确定按钮点击", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            string  tmpName = this.cRdGroup.checkedButton.name; 
+            bool tmpVerifyInfo; 
+            Result tmpResultValue = null;
+            switch(tmpName) 
+            {
+                case "user":
+                tmpVerifyInfo  =  :identity this:.userExists(this.cTxtValue.text.trim());
+                if( ! tmpVerifyInfo) 
+                {
+                    Message.alert("用户非法或不存在！");
+                    return;
+                }
+                tmpResultValue = :identity this:.:server postSafety:( safetyCodeMode.user,this.cTxtValue.text.trim()); 
+                if(tmpResultValue.isOk) 
+                {
+                    Message.alert(tmpResultValue.info);
+                   // return;
+                }
+                var tmpUserDialog = new RetrievePassword();
+                tmpUserDialog.pUser = this.cTxtValue.text.trim();
+                tmpUserDialog.showDialog();
+                break;
+                case "mail":
+                tmpResultValue =  :identity this:.verifyMailExists(this.cTxtValue.text.trim());
+                if( ! tmpResultValue.isOk ) 
+                {
+                    Message.alert(tmpResultValue.info);
+                    return;
+                }
+                tmpResultValue = :identity this:.:server postSafety:( safetyCodeMode.mail,this.cTxtValue.text.trim()); 
+                if(tmpResultValue.isOk) 
+                {
+                    Message.alert(tmpResultValue.info);
+                    //return;
+                }
+                var tmpMailDialog = new RetrievePassword(); 
+                tmpMailDialog.pMail = this.cTxtValue.text.trim();
+                tmpMailDialog.showDialog();
+                break;
+                case "mobile":
+                tmpVerifyInfo =  :identity this:.verifyMobileExists(this.cTxtValue.text.trim());
+                if( ! tmpVerifyInfo ) 
+                {
+                    Message.alert("手机号非法或不存在！");
+                    return;
+                }
+                tmpResultValue = :identity this:.:server postSafety:( safetyCodeMode.mobile,this.cTxtValue.text.trim()); 
+                if(tmpResultValue.isOk) 
+                {
+                    Message.alert(tmpResultValue.info);
+                   // return;
+                }
+                var tmpMobileDialog = new RetrievePassword();
+                tmpMobileDialog.pMobile = this.cTxtValue.text.trim();
+                tmpMobileDialog.showDialog(); 
+                break;
+            }
+            this.close();
+        } }
+        { user.dlForgetPwd, cTxtValue_mouseUp "信息框鼠标释放事件，验证信息格式并提醒", { client, web }, { private }, { OBJECT sender, MouseEventArgs args }, void, {
+            string  tmpName = this.cRdGroup.checkedButton.name; 
+            string tmpVerifyInfo ="";
+            switch(tmpName) 
+            {
+                case "user":
+                tmpVerifyInfo =  :identity this:.verifyUserFormat(this.cTxtValue.text.trim());
+                if( tmpVerifyInfo != null) 
+                {
+                    this.pVerifyTextbox.showError(this.cTxtValue,tmpVerifyInfo);
+                }
+                break;
+                case "mail":
+                tmpVerifyInfo =  :identity this:.verifyMailFormat(this.cTxtValue.text.trim());
+                if( tmpVerifyInfo != null) 
+                {
+                    this.pVerifyTextbox.showError(this.cTxtValue,tmpVerifyInfo);
+                }
+                break;
+                case "mobile":
+                tmpVerifyInfo =  :identity this:.verifyMobileFormat(this.cTxtValue.text.trim());
+                if( tmpVerifyInfo != null) 
+                {
+                    this.pVerifyTextbox.showError( this.cTxtValue , tmpVerifyInfo );
+                }
+                break;
+            }
+        } }
+        { user.dlForgetPwd, cRdGroup_selectionChanged "找回方式单选组选中改变事件", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            if(this.cRdGroup.checkedButton != null) 
+            {
+                this.cTxtValue.readonly = false; 
+                this.cBtnSend.isEnabled = true;
+            }
+        } }
+        { user.dlForgetPwd, cBtnCancel_click "取消按钮点击事件", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            close();
+        } }
+      
+        { user.RetrievePassword, RetrievePassword "找回密码", , {  }, {  }, , {  
+            scene(web)
+            {
+                width = 450;
+                height = 300; 
+                cLblSafetyCode.top = 0;
+                cLblSafetyCode.left = 80;
+                cTxtSafetyCode.top = 40;
+                cTxtSafetyCode.left = 80;
+                cLblPassword.top = 80;
+                cLblPassword.left = 80;
+                cTxtPassword.top = 120;
+                cTxtPassword.left = 80;
+                cLblConfirmPassword.top = 160;
+                cLblConfirmPassword.left = 80;
+                cTxtConfirmPassword.top = 200;
+                cTxtConfirmPassword.left = 80;
+                cBtnSure.top = 260;
+                cBtnSure.left = 120;
+                cBtnCancel.top = 260;
+                cBtnCancel.left = 220;
+            }
+            this.pVerifyTextbox.add(cLblSafetyCode,this.cTxtSafetyCode,true,:identity this:.pRegSafetyCode,"请输入发到你手机或邮箱中的安全码，仅支持数字!",4);
+            this.pVerifyTextbox.add(cLblPassword,this.cTxtPassword,true,:identity this:.regPwd,"密码必须包含数字和字母且长度不得小于8、大于32",32);
+            this.pVerifyTextbox.add(cLblConfirmPassword , this.cTxtConfirmPassword,true,:identity this:.regPwd,"密码必须包含数字和字母且长度不得小于8、大于32",32); 
+
+            cLblConfirmPassword.leave+=cLblConfirmPassword_leave;
+            cBtnSure.click+=cBtnSure_click;
+            cBtnCancel.click+=cBtnCancel_click;
+
+        } }
+        { user.RetrievePassword, cLblConfirmPassword_leave "确认密码控件被取消激活事件，验证是否一致", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            this.verifyConfirmPassword();
+        } }
+        { user.RetrievePassword, cBtnCancel_click "取消按钮点击事件", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            close();
+        } }
+        { user.RetrievePassword, cBtnSure_click "确认按钮点击", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            if(!this.pVerifyTextbox.verify() || !this.verifyConfirmPassword()) 
+            {
+                return ;
+            }
+            var tmpSafetyCode = this.cTxtSafetyCode.text.trim(); //安全码 
+            var tmpPwdNewMd5 = md5Plus( this.cTxtPassword.text.trim() );
+            enum.safetyCodeMode tmpCodeMode;
+            string tmpUserMobileMail;
+            if(this.pMail !=null && this.pMail != "" )
+            {
+                tmpCodeMode = safetyCodeMode.mail; 
+                tmpUserMobileMail = this.pMail;
+            }
+            else if(this.pMobile != null && this.pMobile != "")
+            {
+                tmpCodeMode = safetyCodeMode.mobile;
+                tmpUserMobileMail = this.pMobile;
+            }
+            else  if(this.pUser != null && this.pUser != "")
+            {
+                tmpCodeMode = safetyCodeMode.user;
+                tmpUserMobileMail = this.pUser;
+            }
+            var tmpResultValue = :identity this:.userPwdModif(tmpUserMobileMail, tmpCodeMode , tmpPwdNewMd5 , tmpSafetyCode ); 
+            if(tmpResultValue.isOk) 
+            {
+                object.Message.alert("修改成功!"); 
+            }
+            else
+            {
+                object.Message.alert("修改失败，"+tmpResultValue.info+"!");
+            } 
+            this.close();
+        } }
+        { user.RetrievePassword, verifyConfirmPassword "重设密码找回", , { private }, { }, bool, {
+            if(this.cTxtConfirmPassword.text != this.cTxtPassword.text) 
+            {
+                this.pVerifyTextbox.showError(this.cTxtConfirmPassword,"两次输入的密码不一致！"); 
+                return false;
+            } 
+            return true;
+        } }
+        
+        { user.modifyInfo, modifyInfo"修改个人信息", {  }, {  }, {  }, , {
+            scene(web)
+            {
+                width = 450;
+                height = 200;
+                cNameLabel.top = 0;
+                cNameLabel.left = 10;
+                cNametextBox.top = 40;
+                cNametextBox.left = 10;
+                cSureButton.top = 100;
+                cSureButton.left = 100;
+                cCancelButton.top = 100;
+                cCancelButton.left = 300;
+            }
+            this.pVerifyTextbox.add(cNameLabel,this.cNametextBox,true,:identity this:.regUserName,"用户名长度2-32之间，仅支持数字、字母、下划线",32);
+            cCancelButton.click+=cCancelButton_click;
+            cSureButton.click+=cSureButton_click;
+            cNametextBox.leave+=cNametextBox_leave;
+        } }
+        { user.modifyInfo, cNametextBox_leave "修改个人信息，控件被取消激活事件", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            var tmpUser = this.cNametextBox.text.trim();
+            var tmpVerify = :identity this:.verifyRegisterUser(tmpUser); //调用客户端验证
+            if( tmpVerify != null) 
+            {
+                this.pVerifyTextbox.showError(cNametextBox,tmpVerify);
+                return;
+            } 
+            tmpVerify = :identity this:.verifyRegisterUser(tmpUser); //服务端再次验证，因为服务端该方法存在连数据库验证的
+            if( tmpVerify != null) 
+            {
+                this.pVerifyTextbox.showError(cNametextBox,"用户名非法:"+ tmpVerify ); 
+                return;
+            }
+        } }
+        { user.modifyInfo, cSureButton_click "修改个人信息，按钮点击事件", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            pSession.a.iName = cNametextBox.text.trim();
+            update by pSession.a;
+            close();
+        } }
+        { user.modifyInfo, cCancelButton_click "修改个人信息，按钮点击事件", { client, web }, { private }, { OBJECT sender, EventArgs args }, void, {
+            close();
+        } }
+        
+        { userICO.diUploadICO, diUploadICO, , {  }, {  }, , { 
+            this.cFilePicker.acceptType = :identity this:.getAcceptType();
+            byCommon.identity.relatedDialog.setWidthHeight(this,380); //设定宽高
+            this.cFilePicker.dock = DockStyle.fill;
+            this.cFilePicker.selectionChanged +=(OBJECT sender, EventArgs args)
+            {
+                if(this.cFilePicker.webFiles.count > 0) 
+                {
+                    var tmpExtendName = this.cFilePicker.webFiles[0].name.matches("[^\\.]+$", RegexMode.multiIgnoreCase)[0].toLower();  
+                    var  tmpBytes = this.cFilePicker.webFiles[0].getBytes(); 
+                    if(tmpBytes.length >  :identity this:.pUploadUserICOFileSize)
+                    {
+                        Message.alert( "文件太大，不能大于["+ ( :identity this:.pUploadUserICOFileSize / 1024  ) +"]K！"); 
+                        return;
+                    }
+                    var tmpResult =  :identity this:.fileUpload( tmpBytes , uploadMode.userIco , tmpExtendName ); 
+                    if(tmpResult.isOk) 
+                        Message.alert("上传成功！"); 
+                    else
+                        Message.alert("上传失败,原因:["+tmpResult.info+"]！");
+                }
+            };
+        } }
+        { userAdmin.adminManager , adminManager , , {  }, {  } , , { 
+            if( :identity this:.isAdmin() )
+            {
+                this.cGrid.visible = true;
+                this.cGrid.addColumns(new GridColumn[]{new GridColumn(){text=" 用户ID"} ,new GridColumn(){text=" 用户名"} ,new GridColumn(){text=" 用户显示名"} , new GridColumn(){text=" 用户手机"}});
+                var tmpList = :identity this:.getAdmin();
+                if(tmpList != null && tmpList.count > 0) 
+                {
+                    foreach (var item in tmpList)
+                    {
+                        var tmpRow = new GridRow(); 
+                        tmpRow.add(new GridCell(){text = item.a.iID });
+                        tmpRow.add(new GridCell(){text = item.iName });
+                        tmpRow.add(new GridCell(){text = item.iDisplayName });
+                        tmpRow.add(new GridCell(){text = item.iMobile });
+                        this.cGrid.add( tmpRow );
+                    }
+                }
+                this.cGrid.contextMenu =  new ContextMenu();
+                var tmpMenuAdd = new MenuItem(){text ="增加管理员"}; 
+                this.cGrid.contextMenu.add( tmpMenuAdd );
+                tmpMenuAdd.click+=(OBJECT sender, EventArgs args)
+                {
+                    this.add();
+                };
+                
+                var tmpMenuDelete = new MenuItem(){text ="删除管理员"}; 
+                this.cGrid.contextMenu.add( tmpMenuDelete );
+                tmpMenuDelete.click +=(OBJECT sender, EventArgs args)
+                {
+                    this.delete();
+                };
+                this.cBtnAdd.click +=(OBJECT sender, EventArgs args)
+                {
+                    this.add();
+                };;
+                this.cBtnDelete.click +=(OBJECT sender, EventArgs args)
+                {
+                    this.delete();
+                };
+            }
+            else
+            {
+                Message.alert("权限不够，禁止进入管理界面！");
+            }
+        } }
+        { userAdmin.adminManager, add, {  }, {  }, {  }, void, {
+            var tmpRetutnList = new List<Row~user>();
+            var tmpWaitingdialog = byCommon.identity.relatedDialog.Loading();
+            var tmpPopupUser = :identity this:.rUser.new popupUser( tmpRetutnList ); 
+            tmpWaitingdialog.close();
+            tmpPopupUser.showDialog();
+            if(tmpRetutnList.count > 0 ) 
+            {
+                var tmpAdminRow = new Row()~userAdmin;
+                tmpAdminRow.iID = tmpRetutnList[0].iID;
+                var tmpResultValue = :identity this:.adminAddRemove( tmpAdminRow , Action.insert); 
+                if(tmpResultValue.isOk) 
+                {
+                    var tmpRow = new GridRow(); 
+                    tmpRow.add(new GridCell(){text = tmpRetutnList[0].iID });
+                    tmpRow.add(new GridCell(){text = tmpRetutnList[0].iName });
+                    tmpRow.add(new GridCell(){text = tmpRetutnList[0].iDisplayName });
+                    tmpRow.add(new GridCell(){text = tmpRetutnList[0].iMobile });
+                    this.cGrid.add( tmpRow );
+                    Message.alert("加入管理员成功！");
+                }
+                else
+                    Message.alert("加入管理员失败："+tmpResultValue.info+"！");
+                
+            }
+        } }
+        { userAdmin.adminManager, delete, {  }, {  }, {  }, void, {
+            if(this.cGrid.selectedGridRows.count > 0) 
+            { 
+                var tmpAdminRow = new Row()~userAdmin;
+                tmpAdminRow.iID = this.cGrid.selectedGridRows[0].cells[0].text;
+                var tmpResultValue = :identity this:.adminAddRemove( tmpAdminRow , Action.delete); 
+                if(tmpResultValue.isOk) 
+                { 
+                    this.cGrid.removeChild(this.cGrid.selectedGridRows[0]);
+                    Message.alert("删除管理员成功！");
+                }
+                else
+                    Message.alert("删除管理员失败！");   
+            }
+        } }
+        
+        { user.popupUser, popupUser, , {  }, {  List<Row~user> f_returnList"返回用户选中的行"}, , {
+            if(:identity this:.rUserAdmin.isAdmin() ) 
+            {
+                this.cBtnSearch.click +=(OBJECT sender, EventArgs args)
+                {
+                    this.fillGrid();
+                }; 
+                this.fillGrid(); //初始查50条记录 
+                this.cGrid.cellDoubleClick +=(OBJECT sender, GridCellEventArgs gridCellArgs) //双击选中
+                {
+                    this.selectReturn( f_returnList );
+                };
+                this.cBtnOk.click +=(OBJECT sender, EventArgs args)
+                {
+                    this.selectReturn( f_returnList );
+                };
+            }
+            else
+            {
+                Message.alert("权限不够，禁止的操作！"); 
+            }
+        } }  
+        { user.popupUser, selectReturn, {  }, {  }, { List<Row~user> f_returnList"返回用户选中的行" }, void, {
+            if(this.cGrid.selectedRows.count > 0 ) 
+            { 
+                f_returnList.add( this.cGrid.selectedRows[0] ); 
+            }
+            this.close();
+        } }
+        { user.popupUser, fillGrid "填充网格", {  }, {  }, {  }, void, { 
+            this.cGrid.clear();
+            var tmpList = :identity this:.rUserAdmin.getPopupUser(this.cTxtKeyword.text.trim()); 
+            if(tmpList != null && tmpList.count > 0) 
+            {
+                this.cGrid.addRange( tmpList );
+            }
+        } }
+    }
+}

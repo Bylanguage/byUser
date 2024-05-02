@@ -1,0 +1,14 @@
+﻿ku byUser
+{
+    system biao identity.orm "身份 orm 表" (
+    string belong "所属类型"
+    , string name "名称"
+    , string[] tables "表源项"
+    , string[] elements "选择列")
+    {
+        { user, userOrm, { user a "用户行 user", userAdmin b"管理员行 userAdmin" }, { a.*, b.+, string userIcoPath, string iFileName "文件名，不包括路径", string iExtendName "文件扩展名或文件格式" } }
+        { userAdmin, adminOrm, { userAdmin a }, { a.+, string iName "用户名", string iDisplayName "用户显示名", string iMobile "手机" } }
+        //{ user, userOrm, { user a, userAdmin b }, { a.*, b.+, string userIcoPath, string iFileName "文件名，不包括路径", string iExtendName "文件扩展名或文件格式" } }
+       // { user, userOrm, { user a, userAdmin c }, { a.*, c.+, string userIcoPath, string iFileName "文件名，不包括路径", string iExtendName "文件扩展名或文件格式" } }
+    }
+}

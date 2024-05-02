@@ -1,0 +1,59 @@
+﻿ku byUser
+{
+    new biao identity.component "身份实例构件表" (
+    string belong "所属身份实例"
+    , string name "名称"
+    , string to "标记项")
+    {
+        { user, iID, ID }
+        { user, iFreeze, freeze }
+        { user, iRank, rank }
+        { user, iName, name }
+        { user, iPassword, password }
+        { user, iDisplayName, displayName }
+        { user, iMobile, mobile }
+        { user, iMail, mail }
+        { user, iCerMode, cerMode }
+        { user, iCerName, cerName }
+        { user, iCerNO, cerNO }
+        { user, iMoney, money }
+        { user, iRemark,Remark }
+        { user, iRegDt, regDt }
+        { user, rLog, :new identity:.log }
+        { user, rUserAdmin, :new identity:.userAdmin }
+        { user, rAnonymous, :new identity:.anonymous }
+        //{ user, iICOPath, iCOPath }
+        { user, rUserICO, :new identity:.userICO }
+        { user, rUserUpload, :new identity:.userUpload }
+        { userAdmin, iID, iD }
+        { userAdmin, iUserMode, userMode }
+        { userAdmin, iDt, dt }
+        { userAdmin, rUser, :new identity:.user }
+        
+        { log, iID, iD }
+        { log, iSceneType, sceneType }
+        { log, iUserID, userID }
+        { log, iUserName, userName }
+        { log, iState, state }
+        { log, iIp, ip }
+        { log, iSummary, summary }
+        { log, iDt, dt }
+        { anonymous, iID, iD }
+        { anonymous, iUserID, userID }
+        { anonymous, iRegDt, regDt }
+        { anonymous, iIP, iP }
+        { userICO, iID, iD }
+        { userICO, iIcoFile, icoFile }
+        { userICO, iUploadDt, uploadDt }
+        { userICO, rUser, :new identity:.user }
+        { userICO, iExtendName, extendName }
+        { userICO, iFileName, fileName }
+        { userUpload, iID, iD }
+        { userUpload, iFileName, fileName }
+        { userUpload, iUserID, userID } 
+        { userUpload, iSummery, summery }
+        { userUpload, iDT, dT }
+        { userUpload, rUser, :new identity:.user }
+        { userUpload, iFileSize, fileSize }
+    }
+}

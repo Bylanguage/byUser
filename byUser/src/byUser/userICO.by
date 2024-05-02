@@ -1,0 +1,12 @@
+﻿ku byUser
+{
+    data biao userICO [primaryKey(iD)] (
+    string iD "用户ID" [by.identity.ID, notNull]
+    , string icoFile "图标文件， < 50k" [by.identity.Attribute,max:5000000]
+    , datetime uploadDt "上传日期" [by.identity.Attribute]
+    , string fileName "文件名" [by.identity.Attribute]
+    , string extendName "文件扩展名或文件格式" [by.identity.Attribute] )
+    {
+        
+    }
+}

@@ -1,0 +1,19 @@
+﻿ku byUser
+{
+    system biao identity "身份类型表" (
+    string name "名称"
+    , string[] scenes "场景"
+    , string[] modifiers "修饰符"
+    , string kind "类型类别"
+    , string inheritance "继承项"
+    , string[] implementations "实现接口"
+    , string constraints "约束项")
+    {
+        { user "用户" , { client, server, web }, {  }, identity,by.identity.Table , {  },  }
+        { userICO "用户头像图标，< 50K，图标存库是为了解决多系统分布式布署时，能在不同的子系中正确显示图标", { client, server, web }, {  }, identity, by.identity.Table, {  },  }
+        { userUpload "用户上传文件列表", { client, server, web }, {  }, identity, by.identity.Table, {  },  }
+        { userAdmin "管理员表，在该表中的用户全部为管理员", { client, server, web }, {  }, identity, by.identity.Table, {  },  } 
+        { anonymous "用户机器ID标识", { client, server, web  }, {  }, identity, by.identity.Table, {  },  }
+         
+    }
+}

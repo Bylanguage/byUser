@@ -1,0 +1,14 @@
+﻿ku byUser
+{
+    system biao identity.event "身份事件表" (
+    string belong "所属类型"
+    , string name "名称"
+    , string[] scenes "场景"
+    , string[] modifiers "修饰符"
+    , string[] parameters "参数")
+    {
+        { user, loginSuccessEvent "登录成功事件", {  }, {  }, { userOrm f_userRow } }
+        { user, userExitEvent "用户退出事件", {  }, {  }, {  userOrm f_userRow } }
+        { userICO, userICOChangeEvent "用户修改图标事件", {  }, {  }, { user.userOrm f_userRow } }
+    }
+}

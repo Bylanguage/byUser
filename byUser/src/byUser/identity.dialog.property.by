@@ -1,0 +1,84 @@
+﻿ku byUser
+{
+    system biao identity.dialog.property "身份窗体属性表" (
+    string belong "所属类型"
+    , string name "名称"
+    , string[] scenes "场景"
+    , string[] modifiers "修饰符"
+    , string type "类型"
+    , OBJECT value "值")
+    {
+        { user.diLogin  , cLblName "用户名", , {  }, object.Label, new Label(){text ="用户名："}  }
+        { user.diLogin  , cTxtName "用户名", , , object.TextBox,new object.TextBox() {placeholder = ""}}
+        { user.diLogin  , cLblPwd "密码：", , {  }, object.Label, new Label(){text ="密码：" }  }
+        { user.diLogin  , cTxtPwd "密码", , , object.TextBox,new object.TextBox(){isPassword = true,placeholder = ""} }
+        { user.diLogin  , cBtnLogin "登录", , , object.Button ,new object.Button(){}}
+        { user.diLogin  , cBtnReg "注册", , {  }, object.Button, new Button()  } 
+        { user.diLogin  , cLblFindPwd "找回密码", , {  }, object.Label, new Label(){ cursor = CursorStyle.hand, text="忘记密码了？点击找回",foreColor= new Color(191,22,22)}}
+        
+        { user.diModifPwd, cLblSourcePwd "原密码", , {  }, object.Label, new Label(){text ="原密码："}  }
+        { user.diModifPwd, cTxtSourcePwd "原密码", , {  }, object.TextBox, new TextBox(){isPassword = true,placeholder = ""} } 
+        { user.diModifPwd, cLblNewPwd "新密码", , {  }, object.Label, new Label(){text ="新密码："}  }
+        { user.diModifPwd, cTxtNewPwd "新密码", , {  }, object.TextBox, new TextBox(){isPassword = true,placeholder = ""}  }
+        { user.diModifPwd, cLblConfirmNewPwd"确认密码", , {  }, object.Label, new Label(){text = "请确认新密码："} }
+        { user.diModifPwd, cTxtConfirmNewPwd"确认密码", , {  }, object.TextBox,new TextBox(){isPassword = true,placeholder = ""}  }
+        { user.diModifPwd, cBtnSure "确认", , {  }, object.Button, new Button(){text = "确认"} }
+        { user.diModifPwd, cBtnCancel"取消", , {  }, object.Button, new Button() {text = "取消"} }
+        { user.diModifPwd, pVerifyTextbox , , {  }, verifyTextbox, new verifyTextbox() }
+        
+        { user.diUserReg, cLblName "用户名", , {  }, object.Label, new Label(){text ="用户名："}  }
+        { user.diUserReg, cTxtName "用户名", , {  }, object.TextBox, new TextBox() { placeholder = "" } }
+        { user.diUserReg, cLblPwd "密码", , {  }, object.Label, new Label(){text ="密码："}  }
+        { user.diUserReg, cTxtPwd "密码", , {  }, object.TextBox, new TextBox() {isPassword = true,placeholder = ""} } 
+        { user.diUserReg, cLblConfirmPwd "再输入一遍", , {  }, object.Label, new Label(){text ="再输入一遍："}  }
+        { user.diUserReg, cTxtConfirmPwd "再输入一遍", , {  }, object.TextBox, new TextBox() {isPassword = true,placeholder = ""} } 
+        { user.diUserReg, cLblMobile "手机", , {  }, object.Label, new Label(){text ="手机："}  }
+        { user.diUserReg, cTxtMobile "手机", , {  }, object.TextBox, new TextBox() { placeholder = "" }  }
+        { user.diUserReg, cLblMail "邮箱", , {  }, object.Label, new Label(){text ="邮箱："}  }
+        { user.diUserReg, cTxtMail "邮箱", , {  }, object.TextBox, new TextBox()  { placeholder = "" } }
+        { user.diUserReg, cLblSafetyCode"安全码", , {  }, Label,new Label(){text="请输入安全码：",visible = false}  }
+        { user.diUserReg, cTxtSafetyCode "安全码", , {  }, object.TextBox,new TextBox(){visible = false,placeholder = ""} } 
+        { user.diUserReg, cLblSendCode "发送安全码", , {  }, object.Label, new Label(){ cursor = CursorStyle.hand, text="点击发送安全码",foreColor= new Color(191,22,22)}}
+        { user.diUserReg, cBtnReg "注册", , {  }, object.Button, new Button(){} }
+        { user.diUserReg, cBtnCancel"取消", {  }, , object.Button, new Button(){}  }
+        { user.diUserReg, pUserRow"存储用户输入数据", , {  }, Row~user, new Row()~:identity this:  } 
+        { user.diUserReg, pUserRsaRow"存储加密后用户输入数据", , {  }, Row~user, new Row()~:identity this:  }     //ruben 23-09-19 add 源数据在注册成功需进行自动登录，设置加密行存储加密后的数据
+        { user.diUserReg, pVerifyTextbox, , {  }, verifyTextbox, new verifyTextbox() }
+        
+        { user.dlForgetPwd, cRdGroup "我记得", , {  }, object.RadioButtonGroup, new RadioButtonGroup()  }
+        { user.dlForgetPwd, cLblValue "用户名/手机号/邮箱", , {  }, object.Label, new Label(){text ="请输入账号相关信息："}  }
+        { user.dlForgetPwd, cTxtValue "用户名/手机号/邮箱", , , object.TextBox,new object.TextBox(){readonly = true,placeholder = "用户名/手机号/邮箱"} }
+        { user.dlForgetPwd, cBtnSend "发送验证码", , {  }, object.Button, new Button(){text ="确认发送验证码",isEnabled= false} }
+        { user.dlForgetPwd, cBtnCancel "取消", {  }, {  }, object.Button, new Button(){}  }
+        { user.dlForgetPwd, pVerifyTextbox , , {  }, verifyTextbox, new verifyTextbox() }
+        
+        { user.RetrievePassword, cLblSafetyCode"安全码", , {  }, Label,new Label(){text="请输入安全码："}  }
+        { user.RetrievePassword, cTxtSafetyCode "安全码", , {  }, object.TextBox,new TextBox(){ placeholder = ""} }
+        { user.RetrievePassword, cLblPassword"新密码", , {  }, Label,new Label(){text="请输入新密码："}  }
+        { user.RetrievePassword, cTxtPassword "新密码", , {  }, object.TextBox,new TextBox() {isPassword = true,placeholder = ""} } 
+        { user.RetrievePassword, cLblConfirmPassword"再次确认", , {  }, Label,new Label(){text="请确认密码："}  }
+        { user.RetrievePassword, cTxtConfirmPassword "再次确认", , {  }, object.TextBox,new TextBox() {isPassword = true,placeholder = ""}  }
+        { user.RetrievePassword, cBtnSure "确认修改", , {  }, object.Button,new Button(){text="确认"}  }
+        { user.RetrievePassword, cBtnCancel"取消", {  }, {  }, object.Button,new Button(){text = "取消"}  }
+        { user.RetrievePassword, pVerifyTextbox, , {  }, verifyTextbox, new verifyTextbox() }
+        { user.RetrievePassword, pMail "邮箱", , {  }, string , }
+        { user.RetrievePassword, pMobile "手机", , {  }, string , } 
+        { user.RetrievePassword, pUser "用户名", , {  }, string,  }
+        
+        { user.modifyInfo, cNameLabel"请输入新名称：", {  }, {  }, Label, new Label()  }
+        { user.modifyInfo, cNametextBox, {  }, {  }, TextBox, new TextBox()  }
+        { user.modifyInfo, cSureButton"确定", {  }, {  }, Button,new Button()  }
+        { user.modifyInfo, cCancelButton"取消", {  }, {  }, Button,new Button()  }
+        { user.modifyInfo, pVerifyTextbox, , {  }, verifyTextbox, new verifyTextbox() }
+        
+        { userICO.diUploadICO, cFilePicker "选择文件", {  }, {  }, FilePicker, new FilePicker(){text ="上传本地文件",toolTip ="上传本地文件,支持外部文件拖入" }  }
+        { userAdmin.adminManager, cGrid, {  }, {  }, Grid,new Grid(){visible = false}  } 
+        { userAdmin.adminManager, cBtnAdd"确认加入", {  }, {  }, Button, new Button(){ text = "确认加入" } } 
+        { userAdmin.adminManager, cBtnDelete"确认删除", {  }, {  }, Button, new Button(){ text = "确认删除" } } 
+        { user.popupUser, cLblKeyword"搜索", {  }, {  }, Label, new Label(){  } }
+        { user.popupUser, cTxtKeyword"用户名、手机、邮箱", {  }, {  }, TextBox, new TextBox(){ } }
+        { user.popupUser, cBtnSearch"查询", {  }, {  }, Button, new Button(){ text = "查询" } } 
+        { user.popupUser, cGrid , {  }, {  }, Grid~user, new Grid(){ webWidthFilled = true }~user } 
+        { user.popupUser, cBtnOk"确认加入", {  }, {  }, Button, new Button(){ text = "确认加入" } } 
+    }
+}

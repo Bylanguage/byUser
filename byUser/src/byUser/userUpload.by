@@ -1,0 +1,23 @@
+﻿ku byUser
+{
+    data biao userUpload [primaryKey(iD)] (
+    string iD "上传编号" [by.identity.ID, notNull]
+    , string fileName "文件名，包括扩展名，包括相对目录" [by.identity.ID, notNull] 
+    , int fileSize "文件尺寸K" [by.identity.Attribute]
+    , string userID "用户ID" [by.identity.Reference, ref: user.ID]
+    , string summery "上传说明" [by.identity.Attribute]
+    , datetime dT "上传时间" [by.identity.Attribute])
+    {
+        
+    }
+
+    config biao userUpload.source "数据源配置表。必须配置 SQL 后才有效，例 select [config 配置名], a.* from this, 直接写 select a.* from this 则相关配置无效" (
+    string name "名称"
+    , string mode "模式"
+    , string[] actions "动作"
+    , string fieldAccess "字段访问"
+    , string[] settings "设置")
+    {
+        { fileSize "获取目标表的一个自增长编号, 可以选择增长值", server, { insert, delete, update, select }, fileSize, { name: "fileSize", text: "文件尺寸K", value: System.autoID(this, 1) } }
+    }
+}

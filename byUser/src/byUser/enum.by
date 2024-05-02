@@ -1,0 +1,14 @@
+﻿ku byUser
+{
+    system biao enum "枚举类型表" (
+    string name "名称"
+    , string[] values "枚举值")
+    {
+        { rank "用户分级", { anonymous"匿名用户" , register"注册用户" ,vip "VIP用户"   } } 
+        { adminMode "管理员等级", { general "一般管理人员，无加管理员权限" , admin "管理员，超级用户，全部权限" } }
+        { safetyCodeMode "安全码模式", { user"用户",mail"邮箱",mobile"手机" } }
+        { cer "类件分类", { 身份证,护照 } }
+        { uploadMode "上传目录模式分类，以防用户乱传目录", { userIco "图标目录，用户有删除权限",contentOther"内容目录，用户上传后没有删除权限" } } 
+        { verifyMode"验证模式", { cookie "cookie验证",session"session验证,20分钟后过期" } }
+    }
+}

@@ -1,0 +1,35 @@
+﻿ku byUser
+{
+    system biao identity.property "身份属性表" (
+    string belong "所属类型"
+    , string name "名称"
+    , string[] scenes "场景"
+    , string[] modifiers "修饰符"
+    , string type "类型"
+    , OBJECT value "值")
+    {
+        { user, pSession "暂存当前用户的行数据，没有登录为null", { web,client }, {  }, userOrm,  } 
+        { user, pIsGetServerUserRow "允许用户通过cookie中的ID获取服务端,高安全则该项就设为false，安全级别标识位", { server }, {  }, bool, true }
+        { user, pDenyIpDic "<ip,datetime>拒绝的IP字典，先查询字典", {server}, , Dictionary<string, datetime>,new Dictionary<string, datetime>() }
+        { user, pDenyIpInterval "分钟，当前IP锁定时间周期，默认60分钟", {server}, , int, 60 }
+        { user, pLoginExpire "小时，用户登录超时限制", {server}, , int,2 }
+        { user, pDenyUserDic "<user,list:[datetime]>记录用户登录出错次数，登录成功后相关用户出错信息会删除", {server}, , Dictionary<string, List<datetime>>,new Dictionary<string, List<datetime>>() }
+        { user, pRegMobile"正则校验手机号", {  }, {  }, string, "^[\\d]{11}$"  }
+        { user, pRegMaile"正则校验邮箱", {  }, {  }, string, "^[_\\-0-9a-z]+@(([_\\-0-9a-z]{1,32}\\.[0-9a-z]{2,6})|([_\\-0-9a-z]{1,32}\\.[_\\-0-9a-z]{1,32}\\.[0-9a-z]{2,6}))$"  }
+        { user, pRegSafetyCode"正则校验安全码", {  }, {  }, string, "^[0-9]{4,8}$" } 
+        { user, pSafetyCode"是否启用短信验证码，true为启用", {  }, {  }, bool, true } //可以设定此标志位
+        { user, publicKey"记录公钥", , {  }, string,  }
+        { user, privateKey"记录私钥", , {  }, string,  }
+        { user, publicKeyServer"服务端证书", {web,client} , {  }, string,  }
+        { user, publicKeyWebClient"前端公钥,", { server }, {  }, Dictionary<ServerSession,string>, new Dictionary<ServerSession, string>()  }
+        { user, regPwd"正则校验密码, 密码必须包含数字和字母且长度不得小于6、大于32", {  }, {  }, string, "^[a-zA-Z0-9_]{6,32}$" }
+        { user, regUserName "正则校验用户名 , 用户名长度2-32之间，仅支持数字、字母、下划线@#" , {  }, {  }, string ,  "^[0-9a-zA-Z@_#\\.\\-]{2,32}$" } 
+        { user, pVerifyMode"验证模式，标明是cookie 或 session 验证, 默认为cookie验证", {  }, {  }, verifyMode, verifyMode.cookie }
+        { userICO, pAllowUploadFileType "允许上传的文件名列表", { server,web,client }, {  }, string ,",txt,jpg,png,ico,sql,by,mp4,zip,rar,"  }
+        { userICO, pUploadSerialNumber "服务端当日流水号，用于文件上传自动++", { server }, { private }, int, }
+        { userICO, pUploadFileSize "限制上传文件的size,默认不能大于2M", { server,web,client }, {  }, int,2097152 } 
+        { userICO, pUploadUserICOFileSize "用户图标文件限制上传的size,默认不能大于50K", { server,web,client }, {  }, int,50000 } 
+        { userAdmin, pAdminDic "管理员字典,<userID,adminID>, web&client 端在用户第一次登录时填充", { server }, { private }, Dictionary<string,Row~userAdmin>, new Dictionary<string, Row~userAdmin>()}
+        
+    }
+}

@@ -1,0 +1,67 @@
+﻿ku byUser
+{
+    data biao user [primaryKey(ID)] (
+    string ID "唯一标识" [identity.ID, notNull]
+    , bool freeze "是否冻结" [identity.Attribute, notNull]
+    , byUser.enum.rank rank "用户模式" [by.identity.Attribute]
+    , string name "用户名" [identity.Name, notNull]
+    , string password "密码" [identity.Attribute, notNull]
+    , string displayName "用户显示名" [identity.Attribute, notNull]
+    , string mobile "手机" [identity.Attribute, notNull]
+    , string mail "邮箱" [identity.Attribute, notNull]
+    , enum.cer cerMode "证件类别" [identity.Attribute]
+    , string cerName "证件名称" [identity.Attribute]
+    , string cerNO "证件编号" [identity.Attribute]
+    , decimal money "余额" [identity.Attribute]
+    , datetime regDt "注册日期" [identity.Attribute]
+    , string Remark "备注" [identity.Attribute])
+   // , string iCOPath "图标路径" [by.identity.Attribute]
+    {
+        
+    } 
+
+    config biao user.source "数据源配置表" (
+    string name "名称"
+    , string mode "模式"
+    , string[] actions "动作"
+    , string fieldAccess "字段访问"
+    , string[] settings "设置")
+    {
+        { ID, user, { select }, ID, { name: "ID", text: "唯一标识" } } 
+        { freeze, user, { select }, freeze, { name: "freeze", text: "是否冻结" } } 
+        { name, user, { select }, name, { name: "name", text: "用户名" } } 
+        { password, user, { select }, password, { name: "password", text: "密码" } } 
+        { displayName, user, { select }, displayName, { name: "displayName", text: "用户显示名" } } 
+        { mobile, user, { select }, mobile, { name: "mobile", text: "手机" } } 
+        { mail, user, { select }, mail, { name: "mail", text: "邮箱" } } 
+        { cerMode, user, { select }, cerMode, { name: "cerMode", text: "证件类别" } } 
+        { cerName, user, { select }, cerName, { name: "cerName", text: "证件名称" } } 
+        { cerNO, user, { select }, cerNO, { name: "cerNO", text: "证件编号" } } 
+        { money, user, { select }, money, { name: "money", text: "余额" } } 
+        { Remark, user, { select }, Remark, { name: "Remark", text: "备注" } }
+        { rank "获取枚举类型的枚举值数组", client, { insert, delete, update, select }, rank, { name: "rank", text: "用户模式", value: rank.getValues() } }
+        //{ iCOPath, user, { insert, delete, update, select }, iCOPath, { name: "iCOPath", text: "图标路径" } }
+    }
+
+    config biao user.flow "数据流配置表" (
+    string name "名称"
+    , string action "动作"
+    , string[] sources "数据源(source.name)")
+    {
+        { insert, insert, { cerMode, cerName, cerNO, displayName, freeze, mail, mobile, money, name, Remark, ID, password, rank } }
+        { update, update, { cerMode, cerName, cerNO, displayName, freeze, mail, mobile, money, name, Remark, rank } }
+        { updatePwd, update, { password, rank } }
+        { delete, delete, { ID } }
+    }
+
+    config biao user.control "控件配置表" (
+    string name "名称"
+    , string[] types "控件类型"
+    , string[] sources "数据源(source.name)")
+    {
+        { query, { QueryArea }, { name, displayName, mobile, mail, cerMode, cerName, cerNO, rank } }
+        { manager, { EditArea,Grid }, { ID, freeze, name, password, displayName, mobile, mail, cerMode, cerName, cerNO, money, Remark, rank } } 
+        { popup, { Grid }, { ID, freeze, name, displayName, rank } }
+        { popupAdmin, { Grid }, { ID,  name, displayName,mobile,mail } }
+    }
+}

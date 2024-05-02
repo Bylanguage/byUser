@@ -1,0 +1,56 @@
+﻿ku byUser
+{
+    system biao identity.component "身份构件表" (
+    string belong "所属类型"
+    , string name "名称"
+    , string[] scenes "场景"
+    , string type "类型"
+    , string[] constraints "约束")
+    {
+        { user , iID "用户ID", , ID, {specific:string  } }
+        { user , iFreeze "是否冻结",, Attribute, { specific:bool } }
+        { user , iRank "用户模式", , by.identity.Attribute, { specific:enum.rank  } }
+        { user , iName "用户名",, Name, { specific:string } }
+        { user , iPassword "密码",, Attribute, { specific:string } }
+        { user , iDisplayName "用户显示名", , Attribute, {specific:string  } }
+        //{ user , iICOPath "图标路径", {  }, by.identity.Attribute, { specific:string } }
+        { user , iMobile "手机", , Attribute, { specific:string } }
+        { user , iMail "邮箱", , Attribute, { specific:string } } 
+        { user , iCerMode "证件类别", , Attribute, {specific:enum.cer  } }
+        { user , iCerName "证件姓名", , Attribute, {specific:string  } }
+        { user , iCerNO "证件编号", , Attribute, {specific:string  } }
+        { user , iMoney "余额", , Attribute, {specific:decimal  } }
+        { user , iRemark "备注", , Attribute, {specific:string  } }
+        { user , iRegDt "注册日期", , Attribute, {specific:datetime  } } 
+        { user , rUserICO"用户头像图标", , userICO, {  } }
+        { user , rUserUpload"用户上传文件日志表", , userUpload, {  } }
+        { user , rLog"用户登录日志", , log, {  } }
+        { user , rUserAdmin"管理员表", , userAdmin, {  } }  
+        { user , rAnonymous "匿名用户", , anonymous , {  } } 
+        { userICO, iID"用户ID", , by.identity.ID, {specific:string} }
+        { userICO, iIcoFile"图标文件数据base64格式， < 50k", , by.identity.Attribute, {specific:string} } 
+        { userICO, iFileName"文件名，不包括路径", , by.identity.Attribute, {specific:string} } 
+        { userICO, iExtendName"文件扩展名或文件格式", , by.identity.Attribute, {specific:string} } 
+        { userICO, iUploadDt "上传日期", , Attribute, {specific:datetime  } } 
+        { userICO , rUser "用户", , user , {  } } 
+        
+        { userUpload , iID"上传编号", , by.identity.ID, {specific:string} }
+        { userUpload , iFileName"文件名，包括扩展名，不包括目录", , by.identity.ID, {specific:string} }
+        { userUpload , iFileSize"文件尺寸K", , by.identity.Attribute, {specific:int} }
+        { userUpload , iSummery"上传说明", , by.identity.Attribute, {specific:string} }
+        { userUpload , iUserID"用户ID", , by.identity.Reference, {specific:string, ref:user.iID } }
+        { userUpload , iDT"上传时间", , by.identity.Attribute, {specific:datetime} }
+        { userUpload , rUser "用户", , user , {  } } 
+        
+        { userAdmin, iID"管理员ID,也是用户ID", , by.identity.ID, {specific:string, ref:user.iID} }
+        { userAdmin, iUserMode"管理员模式", , by.identity.Attribute, {specific:enum.adminMode }  } 
+        { userAdmin, iDt"加入时间", , by.identity.Attribute, { specific:datetime  } } 
+        { userAdmin, rUser "用户", {  }, user, {  } }
+        
+        { anonymous , iID "session ID", , by.identity.ID, { specific:string } }
+        { anonymous , iUserID"用户ID", , by.identity.Reference, {specific:string, ref:user.iID} }
+        { anonymous , iRegDt "注册日期", , Attribute, {specific:datetime  } }
+        { anonymous, iIP "ip地址", , by.identity.Attribute, { specific:string  } }
+
+    }
+}

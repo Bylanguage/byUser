@@ -1,0 +1,15 @@
+﻿ku byUser
+{
+    new biao identity "身份实例表" (
+    string name "名称"
+    , string type "身份类型"
+    , string to "标记项")
+    {
+        { user "用户", byUser.identity.user, user }
+        { userAdmin "管理员表，在该表中的用户全部为管理员", byUser.identity.userAdmin, userAdmin }
+        { log "日志", byLog.identity.log, log }
+        { anonymous "用户机器ID标识", byUser.identity.anonymous, anonymous }
+        { userICO "用户头像图标，< 50K", byUser.identity.userICO, userICO }
+        { userUpload "用户上传文件列表", byUser.identity.userUpload, userUpload }
+    }
+}

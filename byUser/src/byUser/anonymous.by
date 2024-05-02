@@ -1,0 +1,45 @@
+﻿ku byUser
+{
+    data biao anonymous [ primaryKey( iD ) ] (
+    string iD "session ID" [ by.identity.ID, notNull ]
+    , string userID "用户ID" [ by.identity.Reference, ref: user.ID ]
+    , datetime regDt "注册日期" [ by.identity.Attribute ]
+    , string iP "ip地址" [ by.identity.Attribute ])
+    {
+        
+    }
+
+    config biao anonymous.source "数据源配置表" (
+    string name "名称"
+    , string mode "模式"
+    , string[] actions "动作"
+    , string fieldAccess "字段访问"
+    , string[] settings "设置")
+    {
+        { iD, user, { select, insert }, iD, { name: "iD", text: "session ID" } }
+        { userID, user, { insert, delete, update, select }, userID, { name: "userID", text: "用户ID" } }
+        { regDt "获取一个 DateTime对象, 该对象设置为此计算机上的当前日期和时间", server, { insert, delete, update, select }, regDt, { name: "regDt", text: "注册日期", value: datetime.getNow() } }
+        { iP, user, { insert, delete, update, select }, iP, { name: "iP", text: "ip地址" } }
+    }
+
+    config biao anonymous.flow "数据流配置表" (
+    string name "名称"
+    , string action "动作"
+    , string[] sources "数据源(source.name)")
+    {
+        { insert, insert, { iD, userID, regDt, iP } }
+        { update, update, { userID, regDt, iP } }
+        { delete, delete, { iD } }
+        { select, select, { iD, userID, regDt, iP } }
+        { popup, select, { iD, iP } }
+    }
+
+    config biao anonymous.control "控件配置表" (
+    string name "名称"
+    , string[] types "控件类型"
+    , string[] sources "数据源(source.name)")
+    {
+        { edit, { EditArea, Grid }, { userID, regDt, iP } }
+        { popup, { Grid, QueryArea }, { iD, iP } }
+    }
+}
